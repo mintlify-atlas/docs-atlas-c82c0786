@@ -1,0 +1,166 @@
+{
+  "projectType": "framework",
+  "projectName": "EverShop",
+  "projectDescription": "A modern, TypeScript-first eCommerce platform built with GraphQL, React, and PostgreSQL",
+  "theme": "palm",
+  "primaryColor": "#16a34a",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "core-concepts/architecture",
+              "core-concepts/module-system",
+              "core-concepts/routing",
+              "core-concepts/graphql",
+              "core-concepts/middleware",
+              "core-concepts/events"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "extensions/overview",
+              "extensions/creating-extensions",
+              "extensions/extension-structure",
+              "extensions/hooks-and-events"
+            ]
+          },
+          {
+            "group": "Themes",
+            "pages": [
+              "themes/overview",
+              "themes/creating-themes",
+              "themes/theme-structure",
+              "themes/customization"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/overview",
+              "components/admin-components",
+              "components/storefront-components",
+              "components/creating-components"
+            ]
+          },
+          {
+            "group": "Modules",
+            "pages": [
+              "modules/catalog",
+              "modules/checkout",
+              "modules/customer",
+              "modules/orders",
+              "modules/cms",
+              "modules/promotions",
+              "modules/payment"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/configuration",
+              "deployment/environment-variables",
+              "deployment/docker",
+              "deployment/production"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "CLI Commands",
+            "pages": [
+              "api/cli/overview",
+              "api/cli/dev",
+              "api/cli/build",
+              "api/cli/start",
+              "api/cli/install",
+              "api/cli/user",
+              "api/cli/theme"
+            ]
+          },
+          {
+            "group": "Core APIs",
+            "pages": [
+              "api/core/event-emitter",
+              "api/core/database",
+              "api/core/router",
+              "api/core/widgets",
+              "api/core/logging"
+            ]
+          },
+          {
+            "group": "GraphQL",
+            "pages": [
+              "api/graphql/schema",
+              "api/graphql/queries",
+              "api/graphql/mutations",
+              "api/graphql/types"
+            ]
+          },
+          {
+            "group": "Module Services",
+            "pages": [
+              "api/services/catalog",
+              "api/services/checkout",
+              "api/services/customer",
+              "api/services/orders",
+              "api/services/cms"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "TypeScript-first architecture",
+    "GraphQL API",
+    "Modular extension system",
+    "Custom theme support",
+    "Product catalog management",
+    "Shopping cart and checkout",
+    "Order management system",
+    "Customer management",
+    "CMS for content pages",
+    "Payment integrations (Stripe, PayPal, COD)",
+    "Tax and promotion engines",
+    "Multi-language support",
+    "React-based admin panel and storefront"
+  ],
+  "publicApiSurface": [
+    "evershop dev",
+    "evershop build",
+    "evershop start",
+    "evershop install",
+    "evershop user:create",
+    "evershop user:changePassword",
+    "evershop theme:create",
+    "evershop theme:active",
+    "@evershop/evershop/lib/event",
+    "@evershop/evershop/lib/postgres",
+    "@evershop/evershop/lib/router",
+    "@evershop/evershop/lib/widget",
+    "@evershop/evershop/lib/middleware/delegate",
+    "@evershop/evershop/catalog/services",
+    "@evershop/evershop/checkout/services",
+    "@evershop/evershop/customer/services",
+    "@evershop/evershop/oms/services",
+    "@evershop/evershop/cms/services"
+  ]
+}
