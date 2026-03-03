@@ -1,0 +1,288 @@
+---
+title: Catalog Module
+description: Product catalog, categories, collections, and attributes management
+---
+
+The Catalog module is the core of EverShop's product management system. It handles products, categories, collections, and product attributes.
+
+## Overview
+
+The Catalog module provides:
+
+- **Product Management** - Create and manage products with variants, options, and attributes
+- **Category System** - Organize products into hierarchical categories
+- **Collections** - Group products into custom collections
+- **Attribute System** - Define custom product attributes and attribute groups
+- **Search & Filtering** - Product search and advanced filtering capabilities
+- **Inventory Management** - Track product stock levels
+
+## Module Structure
+
+The Catalog module is located at `packages/evershop/src/modules/catalog/` and contains:
+
+```
+catalog/
+├── api/                    # API endpoints
+├── graphql/                # GraphQL types and resolvers
+│   ├── types/
+│   │   ├── Product/       # Product types
+│   │   ├── Category/      # Category types
+│   │   ├── Collection/    # Collection types
+│   │   └── Attribute/     # Attribute types
+│   └── resolvers/         # GraphQL resolvers
+├── migration/             # Database migrations
+├── pages/                 # Admin and storefront pages
+├── services/              # Business logic
+└── bootstrap.js           # Module initialization
+```
+
+## GraphQL Types
+
+### Product Type
+
+```graphql
+type Product {
+  productId: Int!
+  uuid: String!
+  name: String!
+  status: Int!
+  sku: String!
+  weight: Weight!
+  noShippingRequired: Boolean
+  taxClass: Int
+  description: JSON
+  urlKey: String
+  metaTitle: String
+  metaDescription: String
+  metaKeywords: String
+  variantGroupId: ID
+  visibility: Int
+  groupId: ID
+  url: String
+}
+```
+
+### Category Type
+
+```graphql
+type Category {
+  categoryId: Int!
+  uuid: String!
+  name: String!
+  description: String
+  status: Int!
+  urlKey: String
+  metaTitle: String
+  metaDescription: String
+  metaKeywords: String
+  parentId: ID
+  url: String
+}
+```
+
+### Collection Type
+
+```graphql
+type Collection {
+  collectionId: Int!
+  uuid: String!
+  name: String!
+  description: String
+  code: String!
+  urlKey: String
+}
+```
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Products" icon="box">
+    Manage products with variants, custom options, images, and pricing
+  </Card>
+  <Card title="Categories" icon="folder-tree">
+    Hierarchical category structure with unlimited nesting
+  </Card>
+  <Card title="Collections" icon="layer-group">
+    Group products into custom collections for marketing
+  </Card>
+  <Card title="Attributes" icon="tags">
+    Define custom product attributes like color, size, material
+  </Card>
+</CardGroup>
+
+## Database Schema
+
+The Catalog module defines these main tables:
+
+- `product` - Core product data
+- `product_description` - Product descriptions and content
+- `product_image` - Product images
+- `product_inventory` - Inventory tracking
+- `category` - Category hierarchy
+- `category_description` - Category descriptions
+- `collection` - Product collections
+- `attribute` - Product attributes
+- `attribute_group` - Attribute grouping
+- `product_attribute_value_index` - Product-attribute relationships
+
+## Working with Products
+
+### Creating a Product
+
+Products are created through the admin panel or API. The product creation process:
+
+1. Define basic product information (name, SKU, price)
+2. Add product description and images
+3. Set inventory and shipping details
+4. Configure product attributes
+5. Assign to categories and collections
+6. Publish the product
+
+### Product Variants
+
+EverShop supports product variants for items that come in different options (e.g., sizes, colors):
+
+```typescript
+// Variant groups link related products
+type VariantGroup {
+  variantGroupId: Int!
+  attributeGroupId: Int
+  visibility: Int
+}
+
+type Variant {
+  variantProductId: Int!
+  productName: String
+  sku: String
+  price: Float
+  qty: Int
+}
+```
+
+## Categories
+
+### Category Hierarchy
+
+Categories support unlimited nesting:
+
+- Root categories (`parentId = null`)
+- Subcategories (`parentId` references parent category)
+- Category URLs are automatically generated from the hierarchy
+
+### Category Assignment
+
+Products can be assigned to multiple categories through the `product_category` junction table.
+
+## Collections
+
+Collections allow you to group products for:
+
+- **Featured products** - Highlight specific products
+- **Seasonal collections** - Group by season or event
+- **Product type collections** - Group by product type
+- **Custom collections** - Any custom grouping
+
+## Attributes
+
+### Attribute System
+
+The attribute system allows you to define custom product properties:
+
+```typescript
+type Attribute {
+  attributeId: Int!
+  attributeCode: String!
+  attributeName: String!
+  type: String!              // text, select, multiselect, textarea
+  isRequired: Boolean
+  displayOnFrontend: Boolean
+  sortOrder: Int
+  isFilterable: Boolean
+}
+```
+
+### Attribute Types
+
+- **text** - Single-line text input
+- **textarea** - Multi-line text input
+- **select** - Single selection dropdown
+- **multiselect** - Multiple selection
+
+### Attribute Groups
+
+Attributes are organized into groups for better organization in the admin panel.
+
+## Search & Filtering
+
+### Product Search
+
+The Catalog module provides full-text search capabilities:
+
+```graphql
+query {
+  productSearch {
+    products {
+      items {
+        productId
+        name
+        sku
+        price {
+          regular
+          special
+        }
+      }
+    }
+    keyword
+  }
+}
+```
+
+### Filtering
+
+Products can be filtered by:
+
+- Category
+- Price range
+- Attributes (color, size, etc.)
+- Stock status
+- Custom filters
+
+## Inventory Management
+
+The inventory system tracks:
+
+- **Stock quantity** - Current stock level
+- **Stock availability** - In stock / Out of stock status
+- **Manage stock** - Enable/disable inventory tracking
+- **Stock updates** - Automatic updates on orders
+
+## Best Practices
+
+<Note>
+  **SEO Optimization**: Always set `urlKey`, `metaTitle`, and `metaDescription` for products and categories to improve search engine visibility.
+</Note>
+
+<Warning>
+  **SKU Uniqueness**: Product SKUs must be unique across all products. The system enforces this constraint at the database level.
+</Warning>
+
+<Tip>
+  **Product Images**: Use high-quality images with consistent dimensions. EverShop automatically generates thumbnails and optimizes images.
+</Tip>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Catalog Services API" icon="code" href="/api/services/catalog">
+    Learn about the Catalog services API
+  </Card>
+  <Card title="GraphQL Queries" icon="diagram-project" href="/api/graphql/queries">
+    Explore catalog GraphQL queries
+  </Card>
+  <Card title="Admin Components" icon="gauge" href="/components/admin-components">
+    Product and category admin components
+  </Card>
+  <Card title="Storefront Components" icon="store" href="/components/storefront-components">
+    Product display components
+  </Card>
+</CardGroup>

@@ -1,0 +1,747 @@
+---
+title: GraphQL Mutations
+description: Complete reference of GraphQL mutations for modifying data in EverShop
+---
+
+## Overview
+
+EverShop uses REST-style mutations through API endpoints rather than GraphQL mutations. The GraphQL schema provides API URLs as fields on types, which you can use to perform create, update, and delete operations.
+
+## Mutation Pattern
+
+Instead of traditional GraphQL mutations, EverShop provides API endpoint URLs in query responses:
+
+```graphql
+query {
+  product(id: "123") {
+    productId
+    name
+    updateApi  # URL for updating this product
+    deleteApi  # URL for deleting this product
+  }
+}
+```
+
+Then make REST API calls to these URLs:
+
+```javascript
+// Update product
+fetch(product.updateApi, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'New Name' })
+})
+
+// Delete product
+fetch(product.deleteApi, {
+  method: 'DELETE'
+})
+```
+
+## Cart Operations
+
+### Add Item to Cart
+
+```graphql
+query {
+  myCart {
+    uuid
+    addItemApi  # POST endpoint
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cart.addItemApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    product_id: 123,
+    qty: 1,
+    variant_options: {
+      color: 1,
+      size: 2
+    }
+  })
+})
+```
+
+### Update Cart Item Quantity
+
+```graphql
+query {
+  myCart {
+    items {
+      uuid
+      qty
+      updateQtyApi  # POST endpoint
+    }
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cartItem.updateQtyApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    qty: 3
+  })
+})
+```
+
+### Remove Item from Cart
+
+```graphql
+query {
+  myCart {
+    items {
+      uuid
+      removeApi  # DELETE endpoint
+    }
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cartItem.removeApi, {
+  method: 'DELETE'
+})
+```
+
+### Add Shipping Address
+
+```graphql
+query {
+  myCart {
+    addAddressApi  # POST endpoint
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cart.addAddressApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    address_type: 'shipping',
+    full_name: 'John Doe',
+    telephone: '555-1234',
+    address_1: '123 Main St',
+    city: 'Los Angeles',
+    province: 'CA',
+    postcode: '90210',
+    country: 'US'
+  })
+})
+```
+
+### Add Shipping Method
+
+```graphql
+query {
+  myCart {
+    addShippingMethodApi
+    availableShippingMethods {
+      code
+      name
+      cost { value }
+    }
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cart.addShippingMethodApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    method_code: 'flat_rate'
+  })
+})
+```
+
+### Add Payment Method
+
+```graphql
+query {
+  myCart {
+    addPaymentMethodApi
+    availablePaymentMethods {
+      code
+      name
+    }
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cart.addPaymentMethodApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    method_code: 'stripe'
+  })
+})
+```
+
+### Add Contact Information
+
+```graphql
+query {
+  myCart {
+    addContactInfoApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cart.addContactInfoApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'customer@example.com'
+  })
+})
+```
+
+### Add Shipping Note
+
+```graphql
+query {
+  myCart {
+    addNoteApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cart.addNoteApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    note: 'Please leave at the front door'
+  })
+})
+```
+
+### Checkout
+
+```graphql
+query {
+  myCart {
+    checkoutApi  # POST endpoint
+  }
+}
+```
+
+**Request:**
+```javascript
+const response = await fetch(cart.checkoutApi, {
+  method: 'POST'
+})
+
+const order = await response.json()
+// Returns order details with order number
+```
+
+## Customer Operations
+
+### Add Customer Address
+
+```graphql
+query {
+  currentCustomer {
+    addAddressApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(customer.addAddressApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    full_name: 'Jane Doe',
+    telephone: '555-5678',
+    address_1: '456 Oak Ave',
+    city: 'San Francisco',
+    province: 'CA',
+    postcode: '94102',
+    country: 'US',
+    is_default: true
+  })
+})
+```
+
+### Update Customer Address
+
+```graphql
+query {
+  currentCustomer {
+    addresses {
+      uuid
+      updateApi
+    }
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(address.updateApi, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    telephone: '555-9999'
+  })
+})
+```
+
+### Delete Customer Address
+
+```graphql
+query {
+  currentCustomer {
+    addresses {
+      uuid
+      deleteApi
+    }
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(address.deleteApi, {
+  method: 'DELETE'
+})
+```
+
+## Product Management (Admin)
+
+### Update Product
+
+```graphql
+query {
+  product(id: "123") {
+    uuid
+    updateApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(product.updateApi, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: 'Updated Product Name',
+    price: 29.99,
+    status: 1,
+    description: 'New description',
+    sku: 'PROD-001'
+  })
+})
+```
+
+### Delete Product
+
+```graphql
+query {
+  product(id: "123") {
+    deleteApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(product.deleteApi, {
+  method: 'DELETE'
+})
+```
+
+### Add Product to Category
+
+```graphql
+query {
+  category(id: 5) {
+    addProductUrl
+  }
+}
+```
+
+### Remove Product from Category
+
+```graphql
+query {
+  product(id: "123") {
+    removeFromCategoryUrl
+  }
+}
+```
+
+### Add Variant to Product
+
+```graphql
+query {
+  product(id: "123") {
+    variantGroup {
+      addItemApi
+    }
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(variantGroup.addItemApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    product_id: 456,
+    attributes: {
+      color: 1,
+      size: 2
+    }
+  })
+})
+```
+
+### Remove Variant
+
+```graphql
+query {
+  product(id: "123") {
+    variantGroup {
+      items {
+        id
+        removeUrl
+      }
+    }
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(variant.removeUrl, {
+  method: 'DELETE'
+})
+```
+
+## Category Management (Admin)
+
+### Update Category
+
+```graphql
+query {
+  category(id: 5) {
+    updateApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(category.updateApi, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: 'Updated Category',
+    status: 1,
+    include_in_nav: 1
+  })
+})
+```
+
+### Delete Category
+
+```graphql
+query {
+  category(id: 5) {
+    deleteApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(category.deleteApi, {
+  method: 'DELETE'
+})
+```
+
+## Order Management (Admin)
+
+### Create Shipment
+
+```graphql
+query {
+  order(uuid: "order-123") {
+    createShipmentApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(order.createShipmentApi, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    carrier: 'UPS',
+    tracking_number: '1Z999AA10123456784'
+  })
+})
+```
+
+### Update Shipment
+
+```graphql
+query {
+  order(uuid: "order-123") {
+    shipment {
+      updateShipmentApi
+    }
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(shipment.updateShipmentApi, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    tracking_number: '1Z999AA10123456999'
+  })
+})
+```
+
+### Cancel Order
+
+```graphql
+query {
+  order(uuid: "order-123") {
+    cancelApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(order.cancelApi, {
+  method: 'POST'
+})
+```
+
+## Customer Management (Admin)
+
+### Update Customer
+
+```graphql
+query {
+  customer(id: "customer-123") {
+    updateApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(customer.updateApi, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    full_name: 'John Smith',
+    status: 1
+  })
+})
+```
+
+### Delete Customer
+
+```graphql
+query {
+  customer(id: "customer-123") {
+    deleteApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(customer.deleteApi, {
+  method: 'DELETE'
+})
+```
+
+## CMS Management (Admin)
+
+### Update CMS Page
+
+```graphql
+query {
+  cmsPage(id: 1) {
+    updateApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cmsPage.updateApi, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: 'Updated Page Title',
+    content: '<p>New content</p>',
+    status: 1
+  })
+})
+```
+
+### Delete CMS Page
+
+```graphql
+query {
+  cmsPage(id: 1) {
+    deleteApi
+  }
+}
+```
+
+**Request:**
+```javascript
+fetch(cmsPage.deleteApi, {
+  method: 'DELETE'
+})
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Error Handling">
+    Always handle errors from API calls:
+    
+    ```javascript
+    try {
+      const response = await fetch(cart.addItemApi, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: 123, qty: 1 })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('Error:', error.message)
+        return
+      }
+      
+      const result = await response.json()
+      // Handle success
+    } catch (error) {
+      console.error('Network error:', error)
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Authentication">
+    Include authentication credentials for authenticated requests:
+    
+    ```javascript
+    fetch(api.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'  // Include cookies
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Optimistic Updates">
+    Update UI optimistically before server response:
+    
+    ```javascript
+    // Update UI immediately
+    setCartItems([...items, newItem])
+    
+    // Then sync with server
+    try {
+      await fetch(cart.addItemApi, { /* ... */ })
+    } catch (error) {
+      // Rollback on error
+      setCartItems(items)
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Rate Limiting">
+    Implement rate limiting for mutation requests:
+    
+    ```javascript
+    import { debounce } from 'lodash'
+    
+    const updateQty = debounce(async (api, qty) => {
+      await fetch(api, {
+        method: 'POST',
+        body: JSON.stringify({ qty })
+      })
+    }, 500)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Response Format
+
+All API endpoints return JSON responses:
+
+### Success Response
+
+```json
+{
+  "success": true,
+  "data": {
+    // Updated entity data
+  }
+}
+```
+
+### Error Response
+
+```json
+{
+  "success": false,
+  "message": "Error description",
+  "errors": [
+    {
+      "field": "qty",
+      "message": "Quantity must be greater than 0"
+    }
+  ]
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Queries" icon="search" href="/api/graphql/queries">
+    Explore available GraphQL queries
+  </Card>
+  <Card title="Types" icon="shapes" href="/api/graphql/types">
+    View all GraphQL types and their fields
+  </Card>
+</CardGroup>

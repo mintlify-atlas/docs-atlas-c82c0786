@@ -1,0 +1,454 @@
+---
+title: "CMS Services"
+description: "Content Management System services for pages, widgets, and file management"
+---
+
+The CMS module provides services for managing content pages, widgets, and media files.
+
+## File Management
+
+### browFiles
+
+Browses and lists files and folders in a directory.
+
+```javascript
+import { browFiles } from '@evershop/evershop/src/modules/cms/services';
+
+const { files, folders } = await browFiles('/products/images');
+
+folders.forEach(folder => {
+  console.log('Folder:', folder);
+});
+
+files.forEach(file => {
+  console.log('File:', file.name);
+  console.log('URL:', file.url);
+});
+```
+
+**Parameters:**
+- `path` (string): Directory path relative to media root
+
+**Returns:** Promise resolving to object with:
+- `files` (array): Array of file objects
+  - `name` (string): File name
+  - `url` (string): Public URL to access file
+- `folders` (array): Array of folder names
+
+**Throws:** Error if path does not exist
+
+**Example - Browse Root Directory:**
+
+```javascript
+const { files, folders } = await browFiles('/');
+console.log('Root folders:', folders);
+console.log('Root files:', files.length);
+```
+
+---
+
+### uploadFile
+
+Uploads one or more files to a specified destination.
+
+```javascript
+import { uploadFile } from '@evershop/evershop/src/modules/cms/services';
+
+// In an Express route handler with multer
+const uploadedFiles = await uploadFile(
+  req.files,  // Array of files from multer
+  '/products/images'
+);
+
+uploadedFiles.forEach(file => {
+  console.log('Uploaded:', file.name);
+  console.log('URL:', file.url);
+  console.log('Size:', file.size, 'bytes');
+  console.log('Type:', file.mimetype);
+});
+```
+
+**Parameters:**
+- `files` (Express.Multer.File[]): Array of file objects from multer
+- `destinationPath` (string): Destination directory path
+
+**Returns:** Promise resolving to array of uploaded file objects:
+- `name` (string): File name
+- `url` (string): Public URL to access file
+- `mimetype` (string): MIME type
+- `size` (number): File size in bytes
+
+**Behavior:**
+- Creates destination folder if it doesn't exist
+- Writes files asynchronously
+- Generates public URLs for each file
+- Supports any file type
+
+**Example with Route:**
+
+```javascript
+import { uploadFile } from '@evershop/evershop/src/modules/cms/services';
+import multer from 'multer';
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+router.post('/upload', upload.array('images'), async (req, res) => {
+  try {
+    const files = await uploadFile(req.files, '/uploads/products');
+    res.json({ success: true, files });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+```
+
+---
+
+### createFolder
+
+Creates a new folder in the media directory.
+
+```javascript
+import { createFolder } from '@evershop/evershop/src/modules/cms/services';
+
+await createFolder('/products/new-category');
+console.log('Folder created successfully');
+```
+
+**Parameters:**
+- `path` (string): Folder path to create
+
+**Returns:** Promise resolving when folder is created
+
+**Behavior:**
+- Creates parent directories if they don't exist
+- No error if folder already exists
+
+---
+
+### deleteFile
+
+Deletes a file from the media directory.
+
+```javascript
+import { deleteFile } from '@evershop/evershop/src/modules/cms/services';
+
+await deleteFile('/products/images/old-image.jpg');
+console.log('File deleted successfully');
+```
+
+**Parameters:**
+- `path` (string): File path to delete
+
+**Returns:** Promise resolving when file is deleted
+
+**Throws:** Error if file does not exist or cannot be deleted
+
+---
+
+## Page Management
+
+### createPage
+
+Creates a new CMS page.
+
+```javascript
+import { createPage } from '@evershop/evershop/src/modules/cms/services';
+
+const page = await createPage({
+  name: 'About Us',
+  url_key: 'about-us',
+  status: 1,
+  content: '<h1>About Our Company</h1><p>We are...</p>',
+  meta_title: 'About Us - Company Name',
+  meta_description: 'Learn more about our company',
+  meta_keywords: 'about, company, history'
+}, {});
+
+console.log('Page created:', page.cms_page_id);
+console.log('Page URL:', page.url_key);
+```
+
+**Parameters:**
+- `data` (object): Page data
+  - `name` (string, required): Page name
+  - `url_key` (string, required): URL-friendly identifier
+  - `status` (number, required): Page status (0=disabled, 1=enabled)
+  - `content` (string, required): Page HTML content
+  - `meta_title` (string, required): SEO meta title
+  - `meta_description` (string): SEO meta description
+  - `meta_keywords` (string): SEO meta keywords
+  - `layout` (string): Page layout template
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to created page object
+
+**Validation:**
+- All required fields must be provided
+- URL key must be unique
+- Content must be valid HTML
+
+---
+
+### updatePage
+
+Updates an existing CMS page.
+
+```javascript
+import { updatePage } from '@evershop/evershop/src/modules/cms/services';
+
+const page = await updatePage(
+  'page-uuid',
+  {
+    content: '<h1>Updated Content</h1>',
+    meta_description: 'Updated description',
+    status: 1
+  },
+  {}
+);
+```
+
+**Parameters:**
+- `uuid` (string): Page UUID
+- `data` (object): Page data to update
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to updated page object
+
+---
+
+### deletePage
+
+Deletes a CMS page.
+
+```javascript
+import { deletePage } from '@evershop/evershop/src/modules/cms/services';
+
+await deletePage('page-uuid', {});
+```
+
+**Parameters:**
+- `uuid` (string): Page UUID
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to deleted page data
+
+---
+
+## Widget Management
+
+Widgets are reusable content blocks that can be placed in various locations.
+
+### createWidget
+
+Creates a new widget.
+
+```javascript
+import { createWidget } from '@evershop/evershop/src/modules/cms/services';
+
+const widget = await createWidget({
+  name: 'Homepage Banner',
+  status: 1,
+  sort_order: 10,
+  type: 'banner',
+  settings: {
+    image: '/media/banner.jpg',
+    link: '/sale',
+    alt_text: 'Summer Sale Banner'
+  },
+  area: 'homepage_top'
+}, {});
+
+console.log('Widget created:', widget.widget_id);
+```
+
+**Parameters:**
+- `data` (object): Widget data
+  - `name` (string, required): Widget name
+  - `status` (number, required): Widget status (0=disabled, 1=enabled)
+  - `sort_order` (number, required): Display order
+  - `type` (string): Widget type identifier
+  - `settings` (object): Widget-specific settings
+  - `area` (string): Display area/location
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to created widget object
+
+**Common Widget Types:**
+- `banner`: Image banner with optional link
+- `text`: HTML text content
+- `menu`: Navigation menu
+- `product_list`: Product listing
+- `newsletter`: Newsletter signup form
+
+---
+
+### updateWidget
+
+Updates an existing widget.
+
+```javascript
+import { updateWidget } from '@evershop/evershop/src/modules/cms/services';
+
+const widget = await updateWidget(
+  'widget-uuid',
+  {
+    name: 'Updated Banner',
+    sort_order: 5,
+    settings: {
+      image: '/media/new-banner.jpg'
+    }
+  },
+  {}
+);
+```
+
+**Parameters:**
+- `uuid` (string): Widget UUID
+- `data` (object): Widget data to update
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to updated widget object
+
+---
+
+### deleteWidget
+
+Deletes a widget.
+
+```javascript
+import { deleteWidget } from '@evershop/evershop/src/modules/cms/services';
+
+await deleteWidget('widget-uuid', {});
+```
+
+**Parameters:**
+- `uuid` (string): Widget UUID
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to deleted widget data
+
+---
+
+### loadWidgetInstances
+
+Loads all active widget instances for a specific area.
+
+```javascript
+import { loadWidgetInstances } from '@evershop/evershop/src/modules/cms/services';
+
+const widgets = await loadWidgetInstances('homepage_top');
+
+widgets.forEach(widget => {
+  console.log('Widget:', widget.name);
+  console.log('Type:', widget.type);
+  console.log('Settings:', widget.settings);
+});
+```
+
+**Parameters:**
+- `area` (string): Widget area name
+
+**Returns:** Promise resolving to array of widget objects sorted by `sort_order`
+
+**Example - Render Widgets:**
+
+```javascript
+const headerWidgets = await loadWidgetInstances('header');
+
+for (const widget of headerWidgets) {
+  if (widget.status === 1) {
+    // Render widget based on type
+    switch (widget.type) {
+      case 'banner':
+        renderBanner(widget.settings);
+        break;
+      case 'menu':
+        renderMenu(widget.settings);
+        break;
+    }
+  }
+}
+```
+
+---
+
+## Query Builder Services
+
+### getCmsPagesBaseQuery
+
+Returns the base query builder for CMS pages.
+
+```javascript
+import { getCmsPagesBaseQuery } from '@evershop/evershop/src/modules/cms/services';
+
+const query = getCmsPagesBaseQuery();
+const pages = await query
+  .where('status', '=', 1)
+  .orderBy('name', 'ASC')
+  .execute();
+
+pages.forEach(page => {
+  console.log(page.name, '-', page.url_key);
+});
+```
+
+**Returns:** Query builder instance for cms_page table
+
+---
+
+### getWidgetsBaseQuery
+
+Returns the base query builder for widgets.
+
+```javascript
+import { getWidgetsBaseQuery } from '@evershop/evershop/src/modules/cms/services';
+
+const query = getWidgetsBaseQuery();
+const widgets = await query
+  .where('area', '=', 'homepage')
+  .andWhere('status', '=', 1)
+  .orderBy('sort_order', 'ASC')
+  .execute();
+```
+
+**Returns:** Query builder instance for widget table
+
+---
+
+## File Storage Configuration
+
+By default, files are stored locally. You can extend the storage system using hooks:
+
+```javascript
+// Custom S3 storage example
+import { registerService } from '@evershop/evershop/src/lib/util/registry';
+
+registerService('fileUploader', {
+  upload: async (files, destinationPath) => {
+    // Upload to S3
+    return uploadedFiles;
+  }
+});
+
+registerService('fileBrowser', {
+  list: async (path) => {
+    // List from S3
+    return { files, folders };
+  }
+});
+```
+
+**Configuration:**
+
+```javascript
+// config/default.json
+{
+  "system": {
+    "file_storage": {
+      "type": "local",  // or "s3", "cloudinary", etc.
+      "path": "/media"
+    }
+  }
+}
+```

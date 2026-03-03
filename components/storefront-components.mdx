@@ -1,0 +1,646 @@
+---
+title: 'Storefront Components'
+description: 'Pre-built components for building customer-facing storefronts'
+---
+
+Storefront components provide the building blocks for creating engaging shopping experiences in EverShop.
+
+## Layout Components
+
+### Header
+
+Storefront header with navigation and branding.
+
+**Location**: `packages/evershop/src/components/frontStore/Header.tsx`
+
+```tsx
+import { Header } from '@components/frontStore/Header.js';
+
+<Header
+  logo="/logo.png"
+  navigationItems={menuItems}
+/>
+```
+
+### Footer
+
+Storefront footer with links and content.
+
+**Location**: `packages/evershop/src/components/frontStore/Footer.tsx`
+
+```tsx
+import { Footer } from '@components/frontStore/Footer.js';
+
+<Footer
+  columns={[
+    {
+      title: 'Shop',
+      links: [
+        { url: '/products', text: 'All Products' },
+        { url: '/categories', text: 'Categories' }
+      ]
+    }
+  ]}
+/>
+```
+
+### Pagination
+
+Pagination for product listings and search results.
+
+**Location**: `packages/evershop/src/components/frontStore/Pagination.tsx`
+
+```tsx
+import { Pagination } from '@components/frontStore/Pagination.js';
+
+<Pagination
+  currentPage={currentPage}
+  totalPages={totalPages}
+  onPageChange={(page) => navigate(`?page=${page}`)}
+/>
+```
+
+## Cart Components
+
+### AddToCart
+
+Render props component for adding products to cart.
+
+**Location**: `packages/evershop/src/components/frontStore/cart/AddToCart.tsx`
+
+```tsx
+import { AddToCart } from '@components/frontStore/cart/AddToCart.js';
+import { Button } from '@components/common/ui/Button.js';
+
+function ProductCard({ product }) {
+  const [qty, setQty] = useState(1);
+
+  return (
+    <AddToCart
+      product={{
+        sku: product.sku,
+        isInStock: product.inventory.qty > 0
+      }}
+      qty={qty}
+      onSuccess={(quantity) => {
+        toast.success(`Added ${quantity} item(s) to cart`);
+      }}
+      onError={(error) => {
+        toast.error(error);
+      }}
+    >
+      {(state, actions) => (
+        <Button
+          onClick={actions.addToCart}
+          disabled={!state.canAddToCart}
+          isLoading={state.isLoading}
+          variant="default"
+        >
+          {state.isLoading ? 'Adding...' : 'Add to Cart'}
+        </Button>
+      )}
+    </AddToCart>
+  );
+}
+```
+
+**Props:**
+
+<ParamField path="product" type="ProductInfo" required>
+  Product information with `sku` and `isInStock` properties
+</ParamField>
+
+<ParamField path="qty" type="number" required>
+  Quantity to add to cart
+</ParamField>
+
+<ParamField path="onSuccess" type="(quantity: number) => void">
+  Callback when item is successfully added
+</ParamField>
+
+<ParamField path="onError" type="(error: string) => void">
+  Callback when an error occurs
+</ParamField>
+
+<ParamField path="children" type="(state: AddToCartState, actions: AddToCartActions) => ReactNode" required>
+  Render function receiving state and actions
+</ParamField>
+
+**State Object:**
+
+```tsx
+interface AddToCartState {
+  isLoading: boolean;      // True when adding to cart
+  error: string | null;    // Error message if any
+  canAddToCart: boolean;   // True if product can be added
+  isInStock: boolean;      // True if product is in stock
+}
+```
+
+**Actions Object:**
+
+```tsx
+interface AddToCartActions {
+  addToCart: () => Promise<void>;  // Function to add item to cart
+  clearError: () => void;           // Function to clear errors
+}
+```
+
+### MiniCart
+
+Dropdown mini cart in header.
+
+**Location**: `packages/evershop/src/components/frontStore/cart/MiniCart.tsx`
+
+```tsx
+import { MiniCart } from '@components/frontStore/cart/MiniCart.js';
+
+<MiniCart
+  iconComponent={<CartIcon />}
+  dropdownComponent={<MiniCartDropdown />}
+/>
+```
+
+### CartContext
+
+React Context for cart state management.
+
+**Location**: `packages/evershop/src/components/frontStore/cart/CartContext.tsx`
+
+```tsx
+import {
+  useCartState,
+  useCartDispatch
+} from '@components/frontStore/cart/CartContext.js';
+
+function MyComponent() {
+  const cartState = useCartState();
+  const cartDispatch = useCartDispatch();
+
+  const itemCount = cartState.data?.items?.length || 0;
+
+  const handleAddItem = async () => {
+    await cartDispatch.addItem({
+      sku: 'PRODUCT-SKU',
+      qty: 1
+    });
+  };
+
+  const handleRemoveItem = async (itemId) => {
+    await cartDispatch.removeItem(itemId);
+  };
+
+  const handleUpdateQty = async (itemId, qty) => {
+    await cartDispatch.updateItem(itemId, { qty });
+  };
+
+  return (
+    <div>
+      <p>Cart has {itemCount} items</p>
+      <p>Total: ${cartState.data?.grandTotal}</p>
+      {cartState.loading && <p>Loading...</p>}
+      {cartState.error && <p>Error: {cartState.error}</p>}
+    </div>
+  );
+}
+```
+
+**Cart State:**
+
+```tsx
+interface CartState {
+  data: {
+    cartId: string;
+    items: CartItem[];
+    subtotal: number;
+    tax: number;
+    grandTotal: number;
+    couponCode?: string;
+    shippingAddress?: Address;
+    billingAddress?: Address;
+  } | null;
+  loading: boolean;
+  error: string | null;
+}
+```
+
+**Cart Dispatch Methods:**
+
+```tsx
+interface CartDispatch {
+  addItem: (item: { sku: string; qty: number }) => Promise<void>;
+  removeItem: (itemId: string) => Promise<void>;
+  updateItem: (itemId: string, data: { qty: number }) => Promise<void>;
+  applyCoupon: (code: string) => Promise<void>;
+  removeCoupon: () => Promise<void>;
+  clearError: () => void;
+}
+```
+
+### CartItems
+
+Displays cart items list.
+
+**Location**: `packages/evershop/src/components/frontStore/cart/CartItems.tsx`
+
+```tsx
+import { CartItems } from '@components/frontStore/cart/CartItems.js';
+
+<CartItems items={cart.items} />
+```
+
+### CartTotalSummary
+
+Displays cart totals breakdown.
+
+**Location**: `packages/evershop/src/components/frontStore/cart/CartTotalSummary.tsx`
+
+```tsx
+import { CartTotalSummary } from '@components/frontStore/cart/CartTotalSummary.js';
+
+<CartTotalSummary
+  subtotal={cart.subtotal}
+  tax={cart.tax}
+  shipping={cart.shippingFee}
+  discount={cart.discount}
+  grandTotal={cart.grandTotal}
+/>
+```
+
+### ItemQuantity
+
+Quantity selector for cart items.
+
+**Location**: `packages/evershop/src/components/frontStore/cart/ItemQuantity.tsx`
+
+```tsx
+import { ItemQuantity } from '@components/frontStore/cart/ItemQuantity.js';
+
+<ItemQuantity
+  itemId={item.cartItemId}
+  currentQty={item.qty}
+  maxQty={item.product.inventory.qty}
+  onChange={(itemId, newQty) => updateCartItem(itemId, newQty)}
+/>
+```
+
+## Catalog Components
+
+### ProductList
+
+Flexible product listing component with grid/list layouts.
+
+**Location**: `packages/evershop/src/components/frontStore/catalog/ProductList.tsx`
+
+```tsx
+import { ProductList } from '@components/frontStore/catalog/ProductList.js';
+
+function CategoryPage({ products, loading }) {
+  return (
+    <ProductList
+      products={products}
+      isLoading={loading}
+      layout="grid"
+      gridColumns={4}
+      imageWidth={300}
+      imageHeight={300}
+      showAddToCart={true}
+      emptyMessage="No products found"
+      className="my-8"
+    />
+  );
+}
+```
+
+**Props:**
+
+<ParamField path="products" type="ProductData[]" required>
+  Array of product data to display
+</ParamField>
+
+<ParamField path="imageWidth" type="number" default="300">
+  Product image width in pixels
+</ParamField>
+
+<ParamField path="imageHeight" type="number" default="300">
+  Product image height in pixels
+</ParamField>
+
+<ParamField path="isLoading" type="boolean" default="false">
+  Shows skeleton loaders when true
+</ParamField>
+
+<ParamField path="emptyMessage" type="string | ReactNode" default="No products found">
+  Message shown when no products available
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS classes for container
+</ParamField>
+
+<ParamField path="layout" type="'grid' | 'list'" default="grid">
+  Display layout: grid or list view
+</ParamField>
+
+<ParamField path="gridColumns" type="number" default="4">
+  Number of columns in grid layout (1-6)
+</ParamField>
+
+<ParamField path="showAddToCart" type="boolean" default="false">
+  Show add to cart button on product cards
+</ParamField>
+
+<ParamField path="customAddToCartRenderer" type="(product: ProductData) => ReactNode">
+  Custom render function for add to cart button
+</ParamField>
+
+<ParamField path="renderItem" type="(product: ProductData) => ReactNode">
+  Custom render function for entire product item
+</ParamField>
+
+**Grid Layout Examples:**
+
+```tsx
+{/* 4-column grid (default) */}
+<ProductList products={products} gridColumns={4} />
+
+{/* 3-column grid */}
+<ProductList products={products} gridColumns={3} />
+
+{/* 2-column grid for mobile-friendly layout */}
+<ProductList products={products} gridColumns={2} />
+```
+
+**List Layout:**
+
+```tsx
+<ProductList
+  products={products}
+  layout="list"
+  imageWidth={150}
+  imageHeight={150}
+/>
+```
+
+**With Custom Add to Cart:**
+
+```tsx
+<ProductList
+  products={products}
+  showAddToCart={true}
+  customAddToCartRenderer={(product) => (
+    <AddToCart product={product} qty={1}>
+      {(state, actions) => (
+        <Button
+          onClick={actions.addToCart}
+          disabled={!state.canAddToCart}
+          variant="outline"
+          size="sm"
+        >
+          Add to Cart
+        </Button>
+      )}
+    </AddToCart>
+  )}
+/>
+```
+
+**With Custom Item Renderer:**
+
+```tsx
+<ProductList
+  products={products}
+  renderItem={(product) => (
+    <div className="custom-product-card">
+      <img src={product.image.url} alt={product.name} />
+      <h3>{product.name}</h3>
+      <p>${product.price.regular}</p>
+      <Link href={`/product/${product.urlKey}`}>View Details</Link>
+    </div>
+  )}
+/>
+```
+
+## Checkout Components
+
+### Payment Components
+
+Located in `packages/evershop/src/components/frontStore/checkout/payment/`
+
+```tsx
+import { PaymentMethods } from '@components/frontStore/checkout/payment/PaymentMethods.js';
+
+<PaymentMethods
+  selectedMethod={paymentMethod}
+  onSelect={(method) => setPaymentMethod(method)}
+/>
+```
+
+### Shipment Components
+
+Located in `packages/evershop/src/components/frontStore/checkout/shipment/`
+
+```tsx
+import { ShippingMethods } from '@components/frontStore/checkout/shipment/ShippingMethods.js';
+
+<ShippingMethods
+  selectedMethod={shippingMethod}
+  onSelect={(method) => setShippingMethod(method)}
+/>
+```
+
+## Customer Components
+
+### Address Forms
+
+Located in `packages/evershop/src/components/frontStore/customer/address/`
+
+```tsx
+import { AddressForm } from '@components/frontStore/customer/address/addressForm/AddressForm.js';
+
+<AddressForm
+  address={address}
+  onSave={(data) => saveAddress(data)}
+  onCancel={() => setEditing(false)}
+/>
+```
+
+## Coupon Components
+
+### Coupon
+
+Display and validate coupon codes.
+
+**Location**: `packages/evershop/src/components/frontStore/Coupon.tsx`
+
+```tsx
+import { Coupon } from '@components/frontStore/Coupon.js';
+
+<Coupon
+  appliedCoupon={cart.couponCode}
+  onApply={(code) => applyCoupon(code)}
+  onRemove={() => removeCoupon()}
+/>
+```
+
+### CouponForm
+
+Form for entering coupon codes.
+
+**Location**: `packages/evershop/src/components/frontStore/CouponForm.tsx`
+
+```tsx
+import { CouponForm } from '@components/frontStore/CouponForm.js';
+
+<CouponForm
+  onSubmit={(code) => applyCoupon(code)}
+  isLoading={applying}
+/>
+```
+
+## SEO Components
+
+### Og
+
+Open Graph meta tags for social sharing.
+
+**Location**: `packages/evershop/src/components/frontStore/Og.tsx`
+
+```tsx
+import { Og } from '@components/frontStore/Og.js';
+
+<Og
+  title="Product Name"
+  description="Product description"
+  image="/products/image.jpg"
+  url="https://example.com/product"
+  type="product"
+/>
+```
+
+## Complete Example
+
+Here's a complete product page example:
+
+```tsx
+import { useState } from 'react';
+import { Image } from '@components/common/Image.js';
+import { Button } from '@components/common/ui/Button.js';
+import { Badge } from '@components/common/ui/Badge.js';
+import { AddToCart } from '@components/frontStore/cart/AddToCart.js';
+import { ProductList } from '@components/frontStore/catalog/ProductList.js';
+import { Og } from '@components/frontStore/Og.js';
+import { toast } from 'react-toastify';
+
+export default function ProductPage({ product, relatedProducts }) {
+  const [qty, setQty] = useState(1);
+
+  return (
+    <div>
+      {/* SEO */}
+      <Og
+        title={product.name}
+        description={product.description}
+        image={product.image.url}
+        type="product"
+      />
+
+      {/* Product Details */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div>
+          <Image
+            src={product.image.url}
+            width={800}
+            height={800}
+            alt={product.name}
+            quality={90}
+          />
+        </div>
+
+        <div>
+          <h1 className="text-3xl font-bold">{product.name}</h1>
+          
+          {product.inventory.qty > 0 ? (
+            <Badge variant="success">In Stock</Badge>
+          ) : (
+            <Badge variant="destructive">Out of Stock</Badge>
+          )}
+
+          <p className="text-2xl font-bold my-4">
+            ${product.price.regular}
+          </p>
+
+          <p className="text-muted-foreground mb-6">
+            {product.description}
+          </p>
+
+          <div className="flex items-center gap-4 mb-6">
+            <label>Quantity:</label>
+            <input
+              type="number"
+              min="1"
+              max={product.inventory.qty}
+              value={qty}
+              onChange={(e) => setQty(parseInt(e.target.value))}
+              className="w-20 px-3 py-2 border rounded"
+            />
+          </div>
+
+          <AddToCart
+            product={{
+              sku: product.sku,
+              isInStock: product.inventory.qty > 0
+            }}
+            qty={qty}
+            onSuccess={() => {
+              toast.success(`Added ${qty} item(s) to cart`);
+            }}
+            onError={(error) => {
+              toast.error(error);
+            }}
+          >
+            {(state, actions) => (
+              <Button
+                onClick={actions.addToCart}
+                disabled={!state.canAddToCart}
+                isLoading={state.isLoading}
+                size="lg"
+                className="w-full"
+              >
+                {state.isLoading ? 'Adding...' : 'Add to Cart'}
+              </Button>
+            )}
+          </AddToCart>
+
+          {state.error && (
+            <p className="text-destructive mt-2">{state.error}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Related Products */}
+      {relatedProducts?.length > 0 && (
+        <div className="mt-16">
+          <h2 className="text-2xl font-bold mb-6">Related Products</h2>
+          <ProductList
+            products={relatedProducts}
+            gridColumns={4}
+            showAddToCart={true}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Common Components" icon="puzzle-piece" href="/components/overview">
+    Explore shared components
+  </Card>
+  <Card title="Creating Components" icon="code" href="/components/creating-components">
+    Learn to build custom components
+  </Card>
+</CardGroup>

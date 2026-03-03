@@ -1,0 +1,388 @@
+---
+title: Environment Variables
+description: Complete reference for all EverShop environment variables
+---
+
+EverShop uses environment variables for sensitive configuration and deployment settings. This guide covers all available environment variables.
+
+## Setting Environment Variables
+
+### Local Development
+
+Create a `.env` file in your project root:
+
+```bash
+DB_HOST="localhost"
+DB_PORT="5432"
+DB_NAME="evershop"
+DB_USER="postgres"
+DB_PASSWORD="your_password"
+DB_SSLMODE="disable"
+```
+
+### Docker Deployment
+
+Set variables in `docker-compose.yml`:
+
+```yaml
+services:
+  app:
+    environment:
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: evershop
+      DB_USER: postgres
+      DB_PASSWORD: secure_password
+```
+
+### Production Servers
+
+Set variables in your hosting environment (Heroku, AWS, etc.) or use a process manager like PM2.
+
+## Database Configuration
+
+<ParamField path="DB_HOST" type="string" required>
+  PostgreSQL database host
+  
+  **Default:** `localhost`
+  
+  **Example:** `database` (Docker), `db.example.com` (remote)
+</ParamField>
+
+<ParamField path="DB_PORT" type="number" required>
+  PostgreSQL database port
+  
+  **Default:** `5432`
+</ParamField>
+
+<ParamField path="DB_NAME" type="string" required>
+  Database name for EverShop
+  
+  **Default:** `evershop`
+</ParamField>
+
+<ParamField path="DB_USER" type="string" required>
+  Database username
+  
+  **Default:** `postgres`
+</ParamField>
+
+<ParamField path="DB_PASSWORD" type="string" required>
+  Database password
+  
+  <Warning>Never commit this to version control</Warning>
+</ParamField>
+
+<ParamField path="DB_SSLMODE" type="enum">
+  SSL mode for database connection
+  
+  **Options:**
+  - `disable` - No SSL connection
+  - `require` - SSL required
+  - `prefer` - Prefer SSL if available
+  - `verify-ca` - Verify certificate authority
+  - `verify-full` - Full SSL verification
+  - `no-verify` - SSL without verification
+  
+  **Default:** `disable`
+</ParamField>
+
+<ParamField path="DB_SSLROOTCERT" type="string">
+  Path to SSL root certificate file
+  
+  Required when using `verify-ca` or `verify-full` SSL modes.
+  
+  **Example:** `/path/to/ca-cert.pem`
+</ParamField>
+
+<ParamField path="DB_SSLCERT" type="string">
+  Path to SSL client certificate file
+  
+  **Example:** `/path/to/client-cert.pem`
+</ParamField>
+
+<ParamField path="DB_SSLKEY" type="string">
+  Path to SSL client key file
+  
+  **Example:** `/path/to/client-key.pem`
+</ParamField>
+
+## Server Configuration
+
+<ParamField path="PORT" type="number">
+  HTTP server port
+  
+  **Default:** `3000`
+  
+  **Example:** `8080`, `80`
+</ParamField>
+
+<ParamField path="NODE_ENV" type="enum">
+  Node.js environment mode
+  
+  **Options:**
+  - `development` - Development mode with hot reload
+  - `production` - Production mode with optimizations
+  - `test` - Testing mode
+  
+  **Default:** `development`
+</ParamField>
+
+## JWT Authentication
+
+EverShop uses JWT tokens for authentication with separate configurations for admin and customer sessions.
+
+<ParamField path="JWT_ISSUER" type="string">
+  JWT token issuer identifier
+  
+  **Default:** `evershop`
+</ParamField>
+
+### Admin JWT Configuration
+
+<ParamField path="JWT_ADMIN_SECRET" type="string" required>
+  Secret key for admin access tokens
+  
+  <Warning>
+  Must be at least 32 characters long. Generate a secure random string.
+  </Warning>
+  
+  **Example:** `your-secret-admin-key-min-32-chars`
+</ParamField>
+
+<ParamField path="JWT_ADMIN_REFRESH_SECRET" type="string" required>
+  Secret key for admin refresh tokens
+  
+  Should be different from `JWT_ADMIN_SECRET`.
+  
+  **Example:** `your-refresh-admin-key-min-32-chars`
+</ParamField>
+
+<ParamField path="JWT_ADMIN_TOKEN_EXPIRY" type="number">
+  Admin access token expiration time in seconds
+  
+  **Default:** `900` (15 minutes)
+</ParamField>
+
+<ParamField path="JWT_ADMIN_REFRESH_TOKEN_EXPIRY" type="number">
+  Admin refresh token expiration time in seconds
+  
+  **Default:** `54000` (15 hours)
+</ParamField>
+
+### Customer JWT Configuration
+
+<ParamField path="JWT_CUSTOMER_SECRET" type="string" required>
+  Secret key for customer access tokens
+  
+  <Warning>
+  Must be at least 32 characters long and different from admin secrets.
+  </Warning>
+  
+  **Example:** `your-secret-customer-key-min-32-chars`
+</ParamField>
+
+<ParamField path="JWT_CUSTOMER_REFRESH_SECRET" type="string" required>
+  Secret key for customer refresh tokens
+  
+  Should be different from `JWT_CUSTOMER_SECRET`.
+  
+  **Example:** `your-refresh-customer-key-min-32-chars`
+</ParamField>
+
+<ParamField path="JWT_CUSTOMER_TOKEN_EXPIRY" type="number">
+  Customer access token expiration time in seconds
+  
+  **Default:** `1800` (30 minutes)
+</ParamField>
+
+<ParamField path="JWT_CUSTOMER_REFRESH_TOKEN_EXPIRY" type="number">
+  Customer refresh token expiration time in seconds
+  
+  **Default:** `108000` (30 hours)
+</ParamField>
+
+## Installation Variables
+
+These variables are used during the `npm run setup` installation process:
+
+<ParamField path="ADMIN_FULLNAME" type="string">
+  Full name of the initial admin user
+  
+  **Example:** `John Doe`
+</ParamField>
+
+<ParamField path="ADMIN_EMAIL" type="string">
+  Email address for the initial admin user
+  
+  **Default:** `admin@admin.com`
+  
+  **Example:** `admin@yourstore.com`
+</ParamField>
+
+<ParamField path="ADMIN_PASSWORD" type="string">
+  Password for the initial admin user
+  
+  Must meet requirements:
+  - At least 8 characters
+  - Contains at least one letter
+  - Contains at least one digit
+  
+  **Default:** `123456` (change this!)
+</ParamField>
+
+## Internal Variables
+
+<ParamField path="ALLOW_CONFIG_MUTATIONS" type="boolean">
+  Allow configuration changes at runtime
+  
+  <Warning>
+  This is used internally and automatically set to `false` after bootstrap. Do not set manually in production.
+  </Warning>
+  
+  **Default:** `false` (after startup)
+</ParamField>
+
+## Example Configurations
+
+### Development Environment
+
+```bash
+# .env file for development
+DB_HOST="localhost"
+DB_PORT="5432"
+DB_NAME="evershop_dev"
+DB_USER="postgres"
+DB_PASSWORD="devpassword"
+DB_SSLMODE="disable"
+
+PORT="3000"
+NODE_ENV="development"
+
+# JWT Secrets (generate secure random strings)
+JWT_ISSUER="evershop"
+JWT_ADMIN_SECRET="dev-admin-secret-key-at-least-32-characters-long"
+JWT_ADMIN_REFRESH_SECRET="dev-admin-refresh-key-at-least-32-characters-long"
+JWT_CUSTOMER_SECRET="dev-customer-secret-key-at-least-32-characters-long"
+JWT_CUSTOMER_REFRESH_SECRET="dev-customer-refresh-key-at-least-32-characters-long"
+
+# Admin user
+ADMIN_EMAIL="admin@localhost"
+ADMIN_PASSWORD="DevPassword123"
+ADMIN_FULLNAME="Admin User"
+```
+
+### Production Environment
+
+```bash
+# Production environment variables (set in hosting platform)
+DB_HOST="prod-db.example.com"
+DB_PORT="5432"
+DB_NAME="evershop_production"
+DB_USER="evershop_user"
+DB_PASSWORD="<use-strong-password>"
+DB_SSLMODE="verify-full"
+DB_SSLROOTCERT="/etc/ssl/certs/ca-certificate.crt"
+
+PORT="80"
+NODE_ENV="production"
+
+# Strong JWT secrets (use a password generator)
+JWT_ISSUER="evershop-production"
+JWT_ADMIN_SECRET="<generate-strong-secret>"
+JWT_ADMIN_REFRESH_SECRET="<generate-strong-secret>"
+JWT_ADMIN_TOKEN_EXPIRY="900"
+JWT_ADMIN_REFRESH_TOKEN_EXPIRY="86400"
+
+JWT_CUSTOMER_SECRET="<generate-strong-secret>"
+JWT_CUSTOMER_REFRESH_SECRET="<generate-strong-secret>"
+JWT_CUSTOMER_TOKEN_EXPIRY="3600"
+JWT_CUSTOMER_REFRESH_TOKEN_EXPIRY="604800"
+```
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    image: evershop/evershop:latest
+    environment:
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: evershop
+      DB_USER: evershop
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSLMODE: disable
+      
+      NODE_ENV: production
+      PORT: 3000
+      
+      JWT_ISSUER: evershop
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET}
+      JWT_ADMIN_REFRESH_SECRET: ${JWT_ADMIN_REFRESH_SECRET}
+      JWT_CUSTOMER_SECRET: ${JWT_CUSTOMER_SECRET}
+      JWT_CUSTOMER_REFRESH_SECRET: ${JWT_CUSTOMER_REFRESH_SECRET}
+    ports:
+      - "3000:3000"
+```
+
+## Security Best Practices
+
+<Card title="Use Strong Secrets" icon="key">
+  Generate JWT secrets using a cryptographically secure random generator:
+  
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ```
+</Card>
+
+<Card title="Never Commit Secrets" icon="git">
+  Add `.env` to your `.gitignore` file:
+  
+  ```
+  .env
+  .env.local
+  .env.production
+  ```
+</Card>
+
+<Card title="Use Environment-Specific Values" icon="server">
+  Use different secrets for development, staging, and production environments.
+</Card>
+
+<Card title="Rotate Secrets Regularly" icon="rotate">
+  Change JWT secrets and database passwords periodically, especially after team member changes.
+</Card>
+
+## Troubleshooting
+
+### JWT Secrets Not Set
+
+If you see errors about missing JWT secrets:
+
+```
+JWT secret for admin is not configured
+```
+
+Ensure all required JWT environment variables are set:
+- `JWT_ADMIN_SECRET`
+- `JWT_ADMIN_REFRESH_SECRET`
+- `JWT_CUSTOMER_SECRET`
+- `JWT_CUSTOMER_REFRESH_SECRET`
+
+### Database Connection Fails
+
+1. Verify all database credentials are correct
+2. Check that the database server is running
+3. Ensure the database user has proper permissions
+4. Verify SSL mode matches your database configuration
+
+### Port Already in Use
+
+Change the `PORT` variable to use a different port:
+
+```bash
+PORT=8080
+```

@@ -1,0 +1,490 @@
+---
+title: Routing System
+description: Understanding route configuration, route.json files, and the middleware chain
+---
+
+## Overview
+
+EverShop uses a **file-based routing system** where routes are defined by directory structure and configured with `route.json` files. Each route has an associated middleware chain that processes requests.
+
+## Route Types
+
+EverShop supports three types of routes:
+
+1. **API routes** - REST endpoints in `api/` directories
+2. **Admin pages** - Admin UI pages in `pages/admin/` directories
+3. **Frontend pages** - Store pages in `pages/frontStore/` directories
+
+## Route Configuration
+
+Every route requires a `route.json` file that defines the HTTP method, path, and access level.
+
+### route.json Structure
+
+```json modules/checkout/api/addCartItem/route.json
+{
+  "methods": ["POST"],
+  "path": "/cart/:cart_id/items",
+  "access": "public"
+}
+```
+
+**Fields:**
+
+- `methods` (required) - Array of HTTP methods: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`
+- `path` (required) - URL path with optional parameters (`:param_name`)
+- `access` (optional) - `"public"` or `"private"` (default: `"private"`)
+- `name` (optional) - Human-readable route name
+
+<Info>
+The route ID is automatically derived from the directory name. For example, `api/createProduct/` becomes route ID `createProduct`.
+</Info>
+
+## Route Discovery
+
+Routes are discovered by scanning module directories:
+
+```javascript packages/evershop/src/lib/router/scanForRoutes.js
+export function scanForRoutes(path, isAdmin, isApi) {
+  const scanedRoutes = readdirSync(path, { withFileTypes: true })
+    .filter((dirent) => dirent.isDirectory())
+    .map((dirent) => dirent.name);
+    
+  return scanedRoutes
+    .map((r) => {
+      if (/^[A-Za-z.]+$/.test(r) === true) {
+        if (existsSync(join(path, r, 'route.json'))) {
+          return parseRoute(
+            join(path, r, 'route.json'),
+            isAdmin,
+            isApi
+          );
+        }
+      }
+      return false;
+    })
+    .filter((e) => e !== false);
+}
+```
+
+### Directory Structure Examples
+
+#### API Route
+
+```
+modules/catalog/api/createProduct/
+├── route.json              # Route configuration
+├── [auth]validate.js       # Middleware: runs after auth
+└── createProduct.js        # Middleware: main handler
+```
+
+#### Admin Page Route
+
+```
+modules/catalog/pages/admin/productEdit/
+├── route.json
+├── [auth]checkPermission.js
+├── loadProduct.js
+└── ProductEditForm.jsx     # React component
+```
+
+#### Frontend Page Route
+
+```
+modules/catalog/pages/frontStore/productView/
+├── route.json
+├── loadProduct.js
+├── ProductPage.jsx
+└── ProductImages.jsx
+```
+
+## Route Registration
+
+Routes are registered during application startup:
+
+```javascript packages/evershop/src/lib/router/Router.js
+class Router {
+  constructor() {
+    this.routes = [];
+  }
+  
+  addRoute(route) {
+    const r = this.routes.find((rt) => rt.id === route.id);
+    if (r !== undefined) {
+      Object.assign(r, route); // Update existing route
+    } else {
+      this.routes.push(route);  // Add new route
+    }
+  }
+  
+  getFrontStoreRoutes() {
+    return this.routes.filter((r) => r.isAdmin === false);
+  }
+  
+  getAdminRoutes() {
+    return this.routes.filter((r) => r.isAdmin === true);
+  }
+}
+```
+
+## Middleware Chain
+
+Each route has an associated middleware chain. Middleware files in the route directory are automatically discovered and executed in a specific order.
+
+### Middleware File Naming
+
+Middleware execution order is controlled by **file naming conventions**:
+
+#### Simple Middleware
+
+```
+middleware.js               # Basic middleware, runs after auth
+```
+
+#### After Dependencies
+
+```
+[auth,validate]handler.js   # Runs AFTER auth AND validate
+```
+
+#### Before Dependencies
+
+```
+auth[context].js            # Runs BEFORE context
+```
+
+#### Both Before and After
+
+```
+[auth]validate[handler].js  # Runs AFTER auth, BEFORE handler
+```
+
+<Note>
+Middleware names in brackets define dependencies. The middleware ID is the part of the filename before `.js` that's not in brackets.
+</Note>
+
+### Parsing Middleware Names
+
+```javascript packages/evershop/src/lib/middleware/parseFromFile.js
+export function parseFromFile(path) {
+  const name = basename(path);
+  let m = {};
+  let id;
+  
+  // Pattern: [after,deps]id.js
+  if (/^(\[)[a-zA-Z1-9.,]+(\])[a-zA-Z1-9]+.js$/.test(name)) {
+    const split = name.split(/[\[\]]+/);
+    id = split[2].substr(0, split[2].indexOf('.')).trim();
+    m = {
+      id,
+      middleware: buildMiddlewareFunction(id, path),
+      after: split[1].split(',').filter((a) => a.trim() !== ''),
+      path
+    };
+  }
+  // Pattern: id[before,deps].js
+  else if (/^[a-zA-Z1-9]+(\[)[a-zA-Z1-9,]+(\]).js$/.test(name)) {
+    const split = name.split(/[\[\]]+/);
+    id = split[0].trim();
+    m = {
+      id,
+      middleware: buildMiddlewareFunction(id, path),
+      before: split[1].split(',').filter((a) => a.trim() !== ''),
+      path
+    };
+  }
+  // Pattern: [after]id[before].js
+  else if (/^(\[)[a-zA-Z1-9,]+(\])[a-zA-Z1-9]+(\[)[a-zA-Z1-9,]+(\]).js$/.test(name)) {
+    const split = name.split(/[\[\]]+/);
+    id = split[2].trim();
+    m = {
+      id,
+      middleware: buildMiddlewareFunction(id, path),
+      after: split[1].split(',').filter((a) => a.trim() !== ''),
+      before: split[3].split(',').filter((a) => a.trim() !== ''),
+      path
+    };
+  }
+  // Simple: id.js
+  else {
+    const split = name.split('.');
+    id = split[0].trim();
+    m = {
+      id,
+      middleware: buildMiddlewareFunction(id, path),
+      path
+    };
+  }
+  
+  return [m];
+}
+```
+
+### Middleware Sorting
+
+Middlewares are sorted using topological sorting based on dependencies:
+
+```javascript packages/evershop/src/lib/middleware/sort.js
+import Topo from '@hapi/topo';
+
+export function sortMiddlewares(middlewares = []) {
+  const sorter = new Topo.Sorter();
+  
+  middlewares.forEach((m) => {
+    sorter.add(m.id, {
+      before: m.before,
+      after: m.after,
+      group: m.id
+    });
+  });
+  
+  return sorter.nodes.map((n) => {
+    const index = middlewares.findIndex((m) => m.id === n);
+    return middlewares[index];
+  });
+}
+```
+
+## Middleware Execution
+
+The middleware chain is executed by the Handler class:
+
+```javascript packages/evershop/src/lib/middleware/Handler.js
+static middleware() {
+  return (request, response, next) => {
+    const { currentRoute } = request;
+    const middlewares = this.getMiddlewareByRoute(currentRoute);
+    
+    const goodHandlers = middlewares.filter((m) => m.middleware.length === 3);
+    const errorHandlers = middlewares.filter((m) => m.middleware.length === 4);
+    
+    let currentGood = 0;
+    let currentError = -1;
+    
+    const eNext = function eNext() {
+      if (arguments.length === 0 && currentGood === goodHandlers.length - 1) {
+        next(); // All done
+      } else if (currentError === errorHandlers.length - 1) {
+        next(arguments[0]); // All error handlers done
+      } else if (arguments.length > 0) {
+        // Error occurred, call error handler
+        currentError += 1;
+        const middlewareFunc = errorHandlers[currentError].middleware;
+        middlewareFunc(arguments[0], request, response, eNext);
+      } else {
+        // Call next middleware
+        currentGood += 1;
+        const middlewareFunc = goodHandlers[currentGood].middleware;
+        middlewareFunc(request, response, eNext);
+      }
+    };
+    
+    // Start the chain
+    const { middleware } = goodHandlers[0];
+    middleware(request, response, eNext);
+  };
+}
+```
+
+<Info>
+Middlewares with 3 parameters `(request, response, next)` are normal handlers. Middlewares with 4 parameters `(error, request, response, next)` are error handlers.
+</Info>
+
+## Middleware Scope
+
+Middleware can have different scopes:
+
+### Route-Specific Middleware
+
+Placed in the route directory:
+
+```
+api/createProduct/
+├── route.json
+└── validate.js          # Only runs for this route
+```
+
+### Admin/FrontStore Middleware
+
+Placed in `pages/admin/` or `pages/frontStore/` directories:
+
+```
+pages/admin/
+└── all/                 # Runs for all admin routes
+    └── checkPermission.js
+```
+
+### Global Middleware
+
+Placed in `pages/global/`:
+
+```
+pages/global/
+└── auth.js              # Runs for all routes
+```
+
+### Middleware Selection by Route
+
+```javascript packages/evershop/src/lib/middleware/Handler.js
+static getMiddlewareByRoute(route) {
+  const region = route.isApi ? 'api' : 'pages';
+  
+  // Start with route-specific and app-level middleware
+  let middlewares = this.middlewares.filter(
+    (m) =>
+      (m.routeId === route.id || m.scope === 'app') &&
+      m.region === region
+  );
+  
+  // Add admin or frontStore middleware
+  if (route.isAdmin === true) {
+    middlewares = middlewares.concat(
+      this.middlewares.filter(
+        (m) => m.routeId === 'admin' && m.region === region
+      )
+    );
+  } else {
+    middlewares = middlewares.concat(
+      this.middlewares.filter(
+        (m) => m.routeId === 'frontStore' && m.region === region
+      )
+    );
+  }
+  
+  return sortMiddlewares(middlewares);
+}
+```
+
+## URL Parameters
+
+Routes can define dynamic parameters:
+
+```json
+{
+  "methods": ["GET"],
+  "path": "/product/:id"
+}
+```
+
+Access parameters in middleware:
+
+```javascript
+export default async function handler(request, response, next) {
+  const { id } = request.params;
+  // Load product with id
+  next();
+}
+```
+
+## Route Access Control
+
+### Public Routes
+
+```json
+{
+  "methods": ["POST"],
+  "path": "/api/customer/login",
+  "access": "public"
+}
+```
+
+### Private Routes (Default)
+
+```json
+{
+  "methods": ["GET"],
+  "path": "/api/customer/orders"
+}
+```
+
+Private routes require authentication middleware.
+
+## Practical Examples
+
+### Example 1: Simple API Route
+
+```
+api/getProduct/
+├── route.json
+└── getProduct.js
+```
+
+```json route.json
+{
+  "methods": ["GET"],
+  "path": "/api/product/:id",
+  "access": "public"
+}
+```
+
+```javascript getProduct.js
+export default async function getProduct(request, response) {
+  const { id } = request.params;
+  const product = await select()
+    .from('product')
+    .where('uuid', '=', id)
+    .load(pool);
+  
+  response.json(product);
+}
+```
+
+### Example 2: Protected Route with Validation
+
+```
+api/updateProduct/
+├── route.json
+├── [auth]validate.js
+└── updateProduct.js
+```
+
+```json route.json
+{
+  "methods": ["PUT"],
+  "path": "/api/product/:id"
+}
+```
+
+```javascript [auth]validate.js
+export default async function validate(request, response, next) {
+  const { name, price } = request.body;
+  
+  if (!name || !price) {
+    response.status(400).json({
+      error: 'Name and price are required'
+    });
+    return;
+  }
+  
+  next();
+}
+```
+
+```javascript updateProduct.js
+export default async function updateProduct(request, response) {
+  const { id } = request.params;
+  const data = request.body;
+  
+  await update('product')
+    .given(data)
+    .where('uuid', '=', id)
+    .execute(pool);
+  
+  response.json({ success: true });
+}
+```
+
+<Warning>
+Middleware order matters! Ensure validation runs after authentication but before the handler by using `[auth]validate.js`.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Middleware" icon="layer-group" href="/core-concepts/middleware">
+    Deep dive into the middleware system
+  </Card>
+  <Card title="GraphQL" icon="diagram-project" href="/core-concepts/graphql">
+    Learn about GraphQL routes and resolvers
+  </Card>
+</CardGroup>

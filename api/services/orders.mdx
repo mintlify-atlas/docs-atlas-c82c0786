@@ -1,0 +1,395 @@
+---
+title: "OMS Services"
+description: "Order Management System services for order operations"
+---
+
+The OMS (Order Management System) module provides services for managing orders, shipments, and order status updates.
+
+## Order Status Management
+
+### updatePaymentStatus
+
+Updates the payment status of an order.
+
+```javascript
+import { updatePaymentStatus } from '@evershop/evershop/src/modules/oms/services';
+
+try {
+  await updatePaymentStatus(
+    orderId,
+    'paid'
+  );
+  console.log('Payment status updated to paid');
+} catch (error) {
+  console.error('Failed to update payment status:', error.message);
+}
+```
+
+**Parameters:**
+- `orderId` (number): Order ID
+- `status` (string): New payment status
+  - Common values: `pending`, `paid`, `failed`, `refunded`, `canceled`
+- `conn` (PoolClient, optional): Database connection (for transactions)
+
+**Returns:** Promise resolving when status is updated
+
+**Behavior:**
+- Validates status against configured payment statuses
+- Updates order payment status
+- Can be called within a transaction by passing connection
+- Throws error if invalid status provided
+
+**Available Payment Statuses:**
+
+Payment statuses are configured in your EverShop config. Common statuses include:
+
+- `pending`: Payment not yet received
+- `paid`: Payment completed successfully
+- `failed`: Payment attempt failed
+- `refunded`: Payment refunded to customer
+- `canceled`: Payment cancelled
+
+---
+
+### updateShipmentStatus
+
+Updates the shipment status of an order.
+
+```javascript
+import { updateShipmentStatus } from '@evershop/evershop/src/modules/oms/services';
+
+try {
+  await updateShipmentStatus(
+    orderId,
+    'shipped'
+  );
+  console.log('Shipment status updated to shipped');
+} catch (error) {
+  console.error('Failed to update shipment status:', error.message);
+}
+```
+
+**Parameters:**
+- `orderId` (number): Order ID
+- `status` (string): New shipment status
+  - Common values: `pending`, `processing`, `shipped`, `delivered`, `canceled`
+- `conn` (PoolClient, optional): Database connection (for transactions)
+
+**Returns:** Promise resolving when status is updated
+
+**Available Shipment Statuses:**
+
+- `pending`: Awaiting processing
+- `processing`: Being prepared for shipment
+- `shipped`: Shipped to customer
+- `delivered`: Delivered to customer
+- `canceled`: Shipment cancelled
+
+---
+
+## Order Operations
+
+### cancelOrder
+
+Cancels an order and restocks inventory.
+
+```javascript
+import { cancelOrder } from '@evershop/evershop/src/modules/oms/services';
+
+try {
+  await cancelOrder(
+    'order-uuid',
+    'Customer requested cancellation'
+  );
+  console.log('Order cancelled successfully');
+} catch (error) {
+  console.error('Cannot cancel order:', error.message);
+}
+```
+
+**Parameters:**
+- `uuid` (string): Order UUID
+- `reason` (string, optional): Cancellation reason
+
+**Returns:** Promise resolving when order is cancelled
+
+**Process:**
+1. Validates order exists
+2. Checks if order is cancelable based on current status
+3. Updates payment status to `canceled`
+4. Updates shipment status to `canceled`
+5. Adds activity log with cancellation reason
+6. Restocks inventory for all order items
+7. Commits transaction or rolls back on error
+
+**Throws:** Error if:
+- Order not found
+- Order status is not cancelable
+- Database transaction fails
+
+**Example with Error Handling:**
+
+```javascript
+try {
+  await cancelOrder('order-uuid', 'Out of stock');
+} catch (error) {
+  if (error.message.includes('not cancelable')) {
+    console.log('Order already shipped, cannot cancel');
+  } else {
+    console.error('Cancellation failed:', error.message);
+  }
+}
+```
+
+---
+
+## Shipment Management
+
+### createShipment
+
+Creates a shipment record for an order and updates status to shipped.
+
+```javascript
+import { createShipment } from '@evershop/evershop/src/modules/oms/services';
+
+const shipment = await createShipment(
+  'order-uuid',
+  'UPS',
+  '1Z999AA10123456784'
+);
+
+console.log('Shipment created:', shipment.shipment_id);
+console.log('Tracking:', shipment.tracking_number);
+```
+
+**Parameters:**
+- `orderUuid` (string): Order UUID
+- `carrier` (string|null): Shipping carrier name
+  - Examples: `'UPS'`, `'FedEx'`, `'USPS'`, `'DHL'`
+- `trackingNumber` (string|null): Tracking number from carrier
+- `connection` (PoolClient, optional): Database connection for transactions
+
+**Returns:** Promise resolving to created shipment object with:
+- `shipment_id` (number): Shipment ID
+- `shipment_order_id` (number): Order ID
+- `carrier` (string): Carrier name
+- `tracking_number` (string): Tracking number
+- `created_at` (timestamp): Creation timestamp
+
+**Process:**
+1. Validates order exists
+2. Checks if shipment already created
+3. Creates shipment record
+4. Updates order shipment status to `shipped`
+5. Adds order activity log
+6. Commits transaction
+
+**Throws:** Error if:
+- Order not found
+- Shipment already exists
+- Database transaction fails
+
+**Example - Create Shipment Without Tracking:**
+
+```javascript
+const shipment = await createShipment(
+  'order-uuid',
+  'Local Pickup',
+  null
+);
+```
+
+---
+
+## Order Activity
+
+### addOrderActivityLog
+
+Adds an activity log entry to an order.
+
+```javascript
+import { addOrderActivityLog } from '@evershop/evershop/src/modules/oms/services';
+
+await addOrderActivityLog(
+  orderId,
+  'Payment verified by accounting team',
+  true  // customer visible
+);
+```
+
+**Parameters:**
+- `orderId` (number): Order ID
+- `message` (string): Activity message
+- `customerNotified` (boolean): Whether customer can see this activity
+- `connection` (PoolClient, optional): Database connection for transactions
+
+**Returns:** Promise resolving when log is added
+
+**Example - Internal Note:**
+
+```javascript
+// Add internal note not visible to customer
+await addOrderActivityLog(
+  orderId,
+  'Fraud check completed - approved',
+  false
+);
+```
+
+**Example - Customer Notification:**
+
+```javascript
+// Add note visible to customer
+await addOrderActivityLog(
+  orderId,
+  'Your order has been packed and is ready for pickup',
+  true
+);
+```
+
+---
+
+## Order Status Resolution
+
+The OMS module automatically resolves the overall order status based on payment and shipment status combinations.
+
+**Status Resolution Logic:**
+
+```javascript
+// Order status is automatically calculated:
+// - If payment pending: "pending"
+// - If payment paid + shipment pending: "processing"
+// - If payment paid + shipment shipped: "shipped"
+// - If payment paid + shipment delivered: "completed"
+// - If payment canceled OR shipment canceled: "canceled"
+```
+
+**Example - Complete Order Workflow:**
+
+```javascript
+import {
+  updatePaymentStatus,
+  createShipment,
+  updateShipmentStatus,
+  addOrderActivityLog
+} from '@evershop/evershop/src/modules/oms/services';
+
+// 1. Payment received
+await updatePaymentStatus(orderId, 'paid');
+await addOrderActivityLog(
+  orderId,
+  'Payment received and verified',
+  true
+);
+
+// 2. Create shipment when ready to ship
+const shipment = await createShipment(
+  orderUuid,
+  'UPS',
+  '1Z999AA10123456784'
+);
+await addOrderActivityLog(
+  orderId,
+  `Order shipped via ${shipment.carrier}. Tracking: ${shipment.tracking_number}`,
+  true
+);
+
+// 3. Update when delivered
+await updateShipmentStatus(orderId, 'delivered');
+await addOrderActivityLog(
+  orderId,
+  'Order delivered successfully',
+  true
+);
+```
+
+---
+
+## Query Builder Services
+
+### getOrdersBaseQuery
+
+Returns the base query builder for orders.
+
+```javascript
+import { getOrdersBaseQuery } from '@evershop/evershop/src/modules/oms/services';
+
+const query = getOrdersBaseQuery();
+const orders = await query
+  .where('payment_status', '=', 'paid')
+  .andWhere('shipment_status', '=', 'pending')
+  .orderBy('created_at', 'DESC')
+  .execute();
+
+orders.forEach(order => {
+  console.log(
+    `Order ${order.order_number}: $${order.grand_total}`
+  );
+});
+```
+
+**Returns:** Query builder instance for orders table
+
+**Example - Get Recent Orders:**
+
+```javascript
+const recentOrders = await getOrdersBaseQuery()
+  .where('created_at', '>=', '2024-01-01')
+  .orderBy('created_at', 'DESC')
+  .limit(0, 20)
+  .execute();
+```
+
+**Example - Get Orders by Customer:**
+
+```javascript
+const customerOrders = await getOrdersBaseQuery()
+  .where('customer_id', '=', customerId)
+  .orderBy('order_number', 'DESC')
+  .execute();
+```
+
+**Example - Get Pending Shipments:**
+
+```javascript
+const pendingShipments = await getOrdersBaseQuery()
+  .where('payment_status', '=', 'paid')
+  .andWhere('shipment_status', '=', 'pending')
+  .execute();
+```
+
+**Available Joins:**
+- Order items
+- Customer information
+- Addresses (shipping and billing)
+- Shipment details
+- Order activities
+
+---
+
+## Configuration
+
+Order statuses are configured in your EverShop configuration file:
+
+```javascript
+// config/default.json
+{
+  "oms": {
+    "order": {
+      "paymentStatus": {
+        "pending": { "name": "Pending", "isDefault": true, "isCancelable": true },
+        "paid": { "name": "Paid", "isCancelable": false },
+        "refunded": { "name": "Refunded", "isCancelable": false },
+        "canceled": { "name": "Canceled", "isCancelable": false }
+      },
+      "shipmentStatus": {
+        "pending": { "name": "Pending", "isDefault": true, "isCancelable": true },
+        "processing": { "name": "Processing", "isCancelable": true },
+        "shipped": { "name": "Shipped", "isCancelable": false },
+        "delivered": { "name": "Delivered", "isCancelable": false },
+        "canceled": { "name": "Canceled", "isCancelable": false }
+      }
+    }
+  }
+}
+```

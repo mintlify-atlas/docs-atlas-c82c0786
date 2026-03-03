@@ -1,0 +1,425 @@
+---
+title: Extension Structure
+description: Understanding the file structure, required files, and naming conventions for EverShop extensions
+---
+
+EverShop extensions follow a specific directory structure that mirrors core modules. Understanding this structure is key to building functional extensions.
+
+## Directory Overview
+
+A complete extension structure looks like this:
+
+```
+my-extension/
+├── src/                    # Source files (development)
+│   ├── api/               # REST API endpoints
+│   ├── graphql/           # GraphQL types and resolvers
+│   ├── pages/             # React components
+│   │   ├── admin/         # Admin panel components
+│   │   └── frontStore/    # Storefront components
+│   ├── subscribers/       # Event subscribers
+│   ├── crons/             # Cron job handlers
+│   └── bootstrap.ts       # Initialization script
+├── dist/                   # Compiled files (production)
+├── package.json           # Package metadata
+├── tsconfig.json          # TypeScript configuration
+└── Readme.md              # Documentation
+```
+
+## Required Files
+
+### package.json
+
+Every extension must have a `package.json` file:
+
+```json
+{
+  "name": "sample-evershop-extension",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "tsc": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
+```
+
+**Key Fields:**
+
+- `type: "module"`: Required for ES modules support
+- `main`: Entry point (typically not used directly)
+- `scripts.tsc`: For compiling TypeScript
+
+### tsconfig.json
+
+TypeScript configuration for compilation:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+## Directory Details
+
+### src/api/
+
+Contains REST API endpoint definitions. Each endpoint is a folder with:
+
+```
+src/api/createFoo/
+├── route.json              # Route configuration
+├── [bodyParser]handler.ts  # Main handler (with middleware)
+└── bodyParser.ts           # Middleware function
+```
+
+**route.json:**
+
+```json
+{
+  "methods": ["POST"],
+  "path": "/foos",
+  "access": "private"
+}
+```
+
+- `methods`: HTTP methods (GET, POST, PUT, DELETE)
+- `path`: URL path
+- `access`: `public` or `private` (requires authentication)
+
+**Handler with Middleware:**
+
+Middleware functions are prefixed with brackets in the filename:
+
+```typescript
+// [bodyParser]handler.ts
+import { EvershopRequest, EvershopResponse } from '@evershop/evershop';
+
+export default (request: EvershopRequest, response: EvershopResponse, next) => {
+  const { name, description } = request.body;
+
+  if (!name || !description) {
+    return response
+      .status(400)
+      .json({ error: 'Name and description are required' });
+  }
+
+  const newFoo = {
+    id: Date.now(),
+    name,
+    description
+  };
+
+  response.status(201).json({
+    success: true,
+    data: { foo: newFoo }
+  });
+};
+```
+
+**Middleware Function:**
+
+```typescript
+// bodyParser.ts
+import bodyParser from 'body-parser';
+
+export default (request, response, next) => {
+  bodyParser.json({ inflate: false })(request, response, next);
+};
+```
+
+Middleware executes in alphabetical order before the main handler.
+
+### src/graphql/
+
+Contains GraphQL schema extensions and resolvers:
+
+```
+src/graphql/types/Foo/
+├── Foo.graphql           # Schema definition
+└── Foo.resolvers.js      # Resolver functions
+```
+
+**Foo.graphql:**
+
+```graphql
+type Foo {
+  id: ID!
+  name: String!
+  description: String
+}
+
+type Query {
+  foo(id: ID!): Foo
+  foos: [Foo!]!
+}
+```
+
+**Foo.resolvers.js:**
+
+```javascript
+const fooList = [
+  {
+    id: 1,
+    name: 'Foo',
+    description: 'This is a Foo object'
+  },
+  {
+    id: 2,
+    name: 'Bar',
+    description: 'This is a Bar object'
+  }
+];
+
+export default {
+  Query: {
+    foo: (root, { id }) => {
+      return fooList.find((foo) => foo.id === id);
+    },
+    foos: () => {
+      return fooList;
+    }
+  },
+  Foo: {
+    id: (foo) => foo.id,
+    name: (foo) => foo.name,
+    description: (foo) => foo.description
+  }
+};
+```
+
+### src/pages/
+
+Contains React components for UI. Organized by area:
+
+```
+src/pages/
+├── admin/              # Admin panel pages
+│   ├── all/           # Appears on all admin pages
+│   └── dashboard/     # Specific admin routes
+└── frontStore/        # Storefront pages
+    ├── all/          # Appears on all storefront pages
+    ├── homepage/     # Homepage components
+    └── customPage/   # Custom route
+        └── route.json
+```
+
+**Component with Layout:**
+
+```tsx
+// src/pages/frontStore/all/FreeShippingMessage.tsx
+import React from 'react';
+
+export default function FreeShippingMessage() {
+  return (
+    <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4">
+      <div className="container mx-auto text-center">
+        <p className="font-medium">
+          🚚 Free shipping on orders over $50!
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export const layout = {
+  areaId: 'body',
+  sortOrder: 0
+};
+```
+
+**Component with GraphQL Query:**
+
+```tsx
+// src/pages/frontStore/homepage/FooList.tsx
+import React from 'react';
+
+type FooListProps = {
+  foos?: {
+    id: number;
+    name: string;
+    description: string;
+  }[];
+};
+
+export default function FooList({ foos }: FooListProps) {
+  return (
+    <div className="foo-list container mx-auto px-4 py-8">
+      <h2 className="font-bold text-center mb-8">Foo List</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {foos?.map((foo) => (
+          <div key={foo.id} className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="font-semibold mb-3">{foo.name}</h3>
+            <p className="text-gray-600">{foo.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export const layout = {
+  areaId: 'content',
+  sortOrder: 30
+};
+
+export const query = `
+  query Query {
+    foos {
+      id
+      name
+      description
+    }
+  }
+`;
+```
+
+**Custom Route:**
+
+```json
+// src/pages/frontStore/foos/route.json
+{
+  "methods": ["GET"],
+  "path": "/foos"
+}
+```
+
+### src/subscribers/
+
+Event subscribers organized by event name:
+
+```
+src/subscribers/
+├── product_created/
+│   ├── consoleLog.js
+│   └── sendNotification.js
+├── order_placed/
+│   └── processOrder.js
+└── customer_registered/
+    └── sendWelcomeEmail.js
+```
+
+**Subscriber Example:**
+
+```javascript
+// src/subscribers/product_created/consoleLog.js
+export default function consoleLog(data) {
+  console.log('Product Created:', data);
+}
+```
+
+All files in the event directory are executed when the event fires.
+
+### src/crons/
+
+Cron job handler functions:
+
+```typescript
+// src/crons/everyMinute.ts
+export default function EveryMinute() {
+  console.log('This cron job runs every minute');
+}
+```
+
+Cron jobs must be registered in `bootstrap.ts`.
+
+### src/bootstrap.ts
+
+Optional initialization script that runs during application startup:
+
+```typescript
+import path from 'path';
+import { registerJob } from '@evershop/evershop/lib/cronjob';
+
+export default function () {
+  registerJob({
+    name: 'sampleJob',
+    schedule: '*/1 * * * *', // Runs every minute
+    resolve: path.resolve(import.meta.dirname, 'crons', 'everyMinute.js'),
+    enabled: true
+  });
+}
+```
+
+## Naming Conventions
+
+### File Names
+
+- **Components**: PascalCase (e.g., `FreeShippingMessage.tsx`)
+- **Handlers**: camelCase (e.g., `handler.ts`, `bodyParser.ts`)
+- **Subscribers**: camelCase (e.g., `consoleLog.js`, `sendEmail.ts`)
+- **Crons**: camelCase (e.g., `everyMinute.ts`, `dailyReport.ts`)
+- **Config**: kebab-case (e.g., `route.json`)
+
+### Middleware Prefix
+
+Middleware functions use bracket notation:
+
+```
+[middlewareName]handler.ts
+[bodyParser]createFoo.ts
+[authenticate]updateProduct.ts
+```
+
+Multiple middleware can be chained:
+
+```
+[authenticate][validateInput]handler.ts
+```
+
+### Directory Names
+
+- **Routes**: kebab-case (e.g., `create-foo/`, `my-custom-page/`)
+- **Events**: snake_case (e.g., `product_created/`, `order_placed/`)
+- **Page areas**: camelCase (e.g., `frontStore/`, `admin/`)
+
+## Development vs Production
+
+### Development Mode
+
+- Uses `src/` directory
+- Hot reload enabled
+- TypeScript compiled on-the-fly
+- Detailed error messages
+
+### Production Mode
+
+- Uses `dist/` directory (required)
+- Compiled JavaScript only
+- Optimized performance
+- Must run `npm run tsc` before deployment
+
+## Best Practices
+
+1. **Keep it Modular**: Each feature should be self-contained
+2. **Use TypeScript**: Better type safety and IDE support
+3. **Document Your Code**: Add comments and README files
+4. **Follow Conventions**: Stick to naming and structure standards
+5. **Test Thoroughly**: Test in both development and production modes
+6. **Version Control**: Use semantic versioning for your extension
+
+## Next Steps
+
+- Learn about [Hooks and Events](/extensions/hooks-and-events)
+- Check the [Creating Extensions](/extensions/creating-extensions) guide
+- Explore the sample extension included with EverShop

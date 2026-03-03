@@ -1,0 +1,576 @@
+---
+title: Theme Management Commands
+description: Create, activate, and customize EverShop themes with CLI commands
+---
+
+## Overview
+
+EverShop provides powerful CLI commands for theme management. Create custom themes, activate them, and create component overrides to customize your store's appearance.
+
+## Available Commands
+
+- `evershop theme:create` - Create a new theme
+- `evershop theme:active` - Activate an existing theme
+- `evershop theme:twizz` - Create theme overrides for components
+
+## theme:create
+
+Create a new theme with a basic structure and starter component.
+
+### Usage
+
+```bash
+evershop theme:create
+```
+
+The command will prompt you interactively:
+
+```
+? Enter new theme name (alphanumeric, dashes or underscores only): my-theme
+```
+
+### Theme Name Rules
+
+Theme names must:
+
+- Use only letters, numbers, dashes, or underscores
+- Match pattern: `/^[A-Za-z0-9_-]+$/`
+- Be unique (not already exist)
+
+### Generated Structure
+
+Creates the following structure:
+
+```
+themes/my-theme/
+├── package.json
+├── tsconfig.json
+└── src/
+    └── pages/
+        └── homepage/
+            └── MyTheme.tsx
+```
+
+### Generated Files
+
+#### package.json
+
+```json
+{
+  "name": "my-theme",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc"
+  }
+}
+```
+
+#### tsconfig.json
+
+```json
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "target": "ES2018",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "jsx": "react",
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "rootDir": "src",
+    "paths": {
+      "@components/*": [
+        "./src/components/*",
+        "../../packages/evershop/src/components/*"
+      ]
+    }
+  },
+  "include": ["src"]
+}
+```
+
+#### Component File (MyTheme.tsx)
+
+```tsx
+import React from 'react';
+
+const MyTheme: React.FC = () => {
+  return (
+    <div className="p-5 text-center text-2xl border border-dashed border-gray-300 my-5 mx-2 bg-blue-50 text-blue-800">
+      <h3 className="mb-3">
+        Welcome to the <span className="text-pink-500">♥ </span>
+        my-theme <span className="text-pink-500">♥ </span> theme!
+      </h3>
+      <code className="text-sm break-all">
+        You can edit this file at:
+        themes/my-theme/src/pages/homepage/MyTheme.tsx
+      </code>
+    </div>
+  );
+};
+
+export const layout = {
+  areaId: 'content',
+  sortOrder: 10
+};
+
+export default MyTheme;
+```
+
+### Success Output
+
+```
+$ evershop theme:create
+? Enter new theme name (alphanumeric, dashes or underscores only): my-theme
+Theme 'my-theme' created.
+Edit your new page at: themes/my-theme/src/pages/homepage/MyTheme.tsx
+```
+
+### Error Cases
+
+#### Invalid Name
+
+```
+? Enter new theme name: my theme!
+Invalid theme name. Use only letters, numbers, dashes or underscores.
+```
+
+#### Theme Already Exists
+
+```
+? Enter new theme name: existing-theme
+Theme 'existing-theme' already exists.
+```
+
+## theme:active
+
+Activate a theme by updating the configuration and optionally rebuilding.
+
+### Usage
+
+```bash
+evershop theme:active
+```
+
+Interactive prompts:
+
+```
+? Select a theme to activate:
+❯ my-theme
+  another-theme
+  default-theme
+
+? Would you like to run "npm run build" now? (Y/n)
+```
+
+### What It Does
+
+1. **Lists Available Themes**: Scans `themes/` directory
+2. **Updates Configuration**: Modifies `config/default.json`
+3. **Optionally Builds**: Runs `npm run build` if confirmed
+
+### Configuration Update
+
+Updates `config/default.json`:
+
+```json
+{
+  "system": {
+    "theme": "my-theme"
+  }
+}
+```
+
+### Build Process
+
+If you choose to build:
+
+```
+? Would you like to run "npm run build" now? Yes
+⠋ Running build...
+✓ Build completed successfully
+```
+
+### Manual Build
+
+If you skip the build:
+
+```
+? Would you like to run "npm run build" now? No
+Remember to run "npm run build" later to apply changes.
+```
+
+### Success Output
+
+```
+┌─────────────────────────────────────────────┐
+│                                             │
+│  Theme updated to "my-theme"                │
+│  in config/default.json                     │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+### Error Cases
+
+#### No Themes Found
+
+```
+No themes found in themes directory.
+```
+
+**Solution**: Create a theme first with `evershop theme:create`.
+
+## theme:twizz
+
+Create theme overrides for EverShop core components. This powerful command analyzes component dependencies and copies them to your theme.
+
+### Usage
+
+```bash
+evershop theme:twizz
+```
+
+Interactive workflow:
+
+```
+? Select a file to override:
+❯ src/components/common/Header.tsx
+  src/components/frontStore/ProductCard.tsx
+  src/modules/catalog/pages/frontStore/productView/ProductView.tsx
+  ...
+
+Analyzing dependencies...
+Found 3 dependencies:
+  src/components/common/Logo.tsx
+  src/components/common/Navigation.tsx
+  src/components/common/SearchBar.tsx
+
+? Copy 3 dependency files along with the main file? (Y/n)
+```
+
+### What It Does
+
+1. **Scans Available Components**:
+   - `src/components/common/`
+   - `src/components/frontStore/`
+   - `src/modules/*/pages/frontStore/`
+
+2. **Analyzes Dependencies**:
+   - Finds relative imports
+   - Resolves import paths
+   - Builds dependency tree
+
+3. **Copies Files to Theme**:
+   - Main component
+   - Optional dependencies
+   - Preserves directory structure
+
+### Dependency Analysis
+
+The command parses imports:
+
+```javascript
+const importRegex =
+  /import\s+(?:(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)(?:\s*,\s*(?:\{[^}]*\}|\*\s+as\s+\w+|\w+))*\s+from\s+)?['"`]([^'"`]+)['"`]/g;
+```
+
+Finds relative imports like:
+
+```tsx
+import Logo from './Logo';
+import { Navigation } from '../navigation/Navigation';
+import SearchBar from './SearchBar.tsx';
+```
+
+### File Mapping
+
+Component paths are mapped to theme structure:
+
+#### Components
+
+```
+src/components/common/Header.tsx
+  → themes/my-theme/src/components/common/Header.tsx
+
+src/components/frontStore/ProductCard.tsx
+  → themes/my-theme/src/components/frontStore/ProductCard.tsx
+```
+
+#### Module Pages
+
+```
+src/modules/catalog/pages/frontStore/productView/ProductView.tsx
+  → themes/my-theme/src/pages/productView/ProductView.tsx
+```
+
+### Success Output
+
+```
+┌─────────────────────────────────────────────────┐
+│                                                 │
+│  Successfully created 4 override file(s):       │
+│  • themes/my-theme/src/components/common/Header.tsx
+│  • themes/my-theme/src/components/common/Logo.tsx
+│  • themes/my-theme/src/components/common/Navigation.tsx
+│  • themes/my-theme/src/components/common/SearchBar.tsx
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+### Customizing Overrides
+
+After creating overrides, edit the files:
+
+```tsx
+// themes/my-theme/src/components/common/Header.tsx
+import React from 'react';
+import Logo from './Logo';
+import Navigation from './Navigation';
+
+const Header: React.FC = () => {
+  return (
+    <header className="custom-header">
+      {/* Your custom implementation */}
+      <Logo />
+      <Navigation />
+    </header>
+  );
+};
+
+export default Header;
+```
+
+### Rebuild Required
+
+After creating overrides:
+
+```bash
+evershop build
+```
+
+The build process will use your theme overrides instead of core components.
+
+## Theme Development Workflow
+
+### 1. Create Theme
+
+```bash
+evershop theme:create
+# Enter theme name: my-store
+```
+
+### 2. Activate Theme
+
+```bash
+evershop theme:active
+# Select: my-store
+# Build: Yes
+```
+
+### 3. Create Overrides
+
+```bash
+evershop theme:twizz
+# Select component to override
+# Copy dependencies: Yes
+```
+
+### 4. Customize
+
+Edit files in `themes/my-store/src/`
+
+### 5. Build and Test
+
+```bash
+# Build
+evershop build
+
+# Start dev server
+evershop dev
+```
+
+## Theme Structure Best Practices
+
+### Organize by Feature
+
+```
+themes/my-theme/src/
+├── components/
+│   ├── common/          # Shared components
+│   └── frontStore/      # Frontend-specific
+├── pages/
+│   ├── homepage/        # Homepage components
+│   ├── productView/     # Product pages
+│   └── checkout/        # Checkout pages
+└── styles/
+    └── custom.css       # Custom styles
+```
+
+### Use TypeScript
+
+All theme files should use TypeScript for type safety:
+
+```tsx
+import React from 'react';
+import { Product } from '@evershop/evershop/types';
+
+interface ProductCardProps {
+  product: Product;
+}
+
+const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+  return <div>{product.name}</div>;
+};
+
+export default ProductCard;
+```
+
+### Export Layout Configuration
+
+All page components should export layout config:
+
+```tsx
+export const layout = {
+  areaId: 'content',
+  sortOrder: 10
+};
+```
+
+## Theme Configuration
+
+### Active Theme
+
+Check active theme in `config/default.json`:
+
+```json
+{
+  "system": {
+    "theme": "my-theme"
+  }
+}
+```
+
+### Multiple Themes
+
+You can have multiple themes, but only one is active:
+
+```
+themes/
+├── theme-1/
+├── theme-2/
+└── theme-3/
+```
+
+### Theme Switching
+
+Switch themes without losing customizations:
+
+```bash
+# Activate theme 1
+evershop theme:active  # Select theme-1
+
+# Later, switch to theme 2
+evershop theme:active  # Select theme-2
+```
+
+## Advanced Usage
+
+### Override Entire Pages
+
+```bash
+evershop theme:twizz
+# Select: src/modules/catalog/pages/frontStore/productView/ProductView.tsx
+```
+
+Customize in `themes/my-theme/src/pages/productView/ProductView.tsx`
+
+### Create Custom Layouts
+
+```tsx
+// themes/my-theme/src/pages/homepage/CustomLayout.tsx
+import React from 'react';
+
+const CustomLayout: React.FC = ({ children }) => {
+  return (
+    <div className="custom-layout">
+      <aside className="sidebar">Sidebar</aside>
+      <main className="content">{children}</main>
+    </div>
+  );
+};
+
+export const layout = {
+  areaId: 'body',
+  sortOrder: 1
+};
+
+export default CustomLayout;
+```
+
+### Add Custom Styles
+
+```tsx
+// themes/my-theme/src/components/common/CustomButton.tsx
+import React from 'react';
+import './CustomButton.css';
+
+const CustomButton: React.FC = ({ children }) => {
+  return <button className="custom-btn">{children}</button>;
+};
+
+export default CustomButton;
+```
+
+## Troubleshooting
+
+### Theme Not Applied
+
+**Solution**: Rebuild after activating:
+
+```bash
+evershop build
+evershop start
+```
+
+### Component Override Not Working
+
+**Solution**: Check file path matches core component path structure.
+
+### TypeScript Compilation Errors
+
+**Solution**: Ensure `tsconfig.json` paths are correct:
+
+```json
+{
+  "compilerOptions": {
+    "paths": {
+      "@components/*": [
+        "./src/components/*",
+        "../../packages/evershop/src/components/*"
+      ]
+    }
+  }
+}
+```
+
+### Import Resolution Errors
+
+**Solution**: Copy all dependencies when using `theme:twizz`.
+
+## Related Commands
+
+- `evershop build` - Build after theme changes
+- `evershop dev` - Test themes in development
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Component System" icon="puzzle-piece" href="/components/overview">
+    Learn about EverShop components
+  </Card>
+  <Card title="Theming Guide" icon="palette" href="/themes/overview">
+    Complete theming guide
+  </Card>
+</CardGroup>

@@ -1,0 +1,799 @@
+---
+title: GraphQL Queries
+description: Complete reference of available GraphQL queries in EverShop
+---
+
+## Overview
+
+EverShop provides a comprehensive set of GraphQL queries for retrieving data across all modules. Queries are read-only operations that fetch data without side effects.
+
+## Catalog Queries
+
+### Product Queries
+
+#### product
+
+Retrieve a single product by ID.
+
+```graphql
+query {
+  product(id: "123") {
+    productId
+    uuid
+    name
+    sku
+    description
+    price {
+      regular {
+        value
+        text
+      }
+      special {
+        value
+        text
+      }
+    }
+    image {
+      url
+      alt
+    }
+    inventory {
+      isInStock
+      stockAvailability
+    }
+  }
+}
+```
+
+**Parameters:**
+- `id` (ID) - Product ID or UUID
+
+#### currentProduct
+
+Get the current product based on the page context.
+
+```graphql
+query {
+  currentProduct {
+    productId
+    name
+    sku
+    url
+    variantGroup {
+      variantAttributes {
+        attributeName
+        options {
+          optionText
+          productId
+        }
+      }
+    }
+  }
+}
+```
+
+#### products
+
+Retrieve a collection of products with filtering.
+
+```graphql
+query {
+  products(filters: [
+    { key: "status", operation: eq, value: "1" }
+    { key: "price", operation: gteq, value: "10" }
+  ]) {
+    items {
+      productId
+      name
+      sku
+      price {
+        regular {
+          value
+          text
+        }
+      }
+    }
+    total
+    currentPage
+    currentFilters {
+      key
+      operation
+      value
+    }
+  }
+}
+```
+
+**Parameters:**
+- `filters` ([FilterInput]) - Array of filter conditions
+
+**Filter Operations:**
+- `eq` - Equal
+- `neq` - Not equal
+- `gt` - Greater than
+- `gteq` - Greater than or equal
+- `lt` - Less than
+- `lteq` - Less than or equal
+- `like` - Pattern match
+- `nlike` - Not like
+- `in` - In array
+- `nin` - Not in array
+
+#### productSearch
+
+Search for products.
+
+```graphql
+query {
+  productSearch {
+    keyword
+    products {
+      items {
+        productId
+        name
+        sku
+      }
+      total
+    }
+  }
+}
+```
+
+### Category Queries
+
+#### category
+
+Retrieve a single category.
+
+```graphql
+query {
+  category(id: 5) {
+    categoryId
+    uuid
+    name
+    description
+    url
+    image {
+      url
+      alt
+    }
+    products(filters: [
+      { key: "status", operation: eq, value: "1" }
+    ]) {
+      items {
+        name
+        sku
+      }
+      total
+    }
+    children {
+      categoryId
+      name
+      url
+    }
+    priceRange {
+      min
+      minText
+      max
+      maxText
+    }
+  }
+}
+```
+
+**Parameters:**
+- `id` (Int) - Category ID
+
+#### currentCategory
+
+Get the current category from page context.
+
+```graphql
+query {
+  currentCategory {
+    categoryId
+    name
+    url
+    path {
+      categoryId
+      name
+      url
+    }
+    availableAttributes {
+      attributeName
+      attributeCode
+      options {
+        optionText
+        optionId
+      }
+    }
+  }
+}
+```
+
+#### categories
+
+Retrieve a collection of categories.
+
+```graphql
+query {
+  categories(filters: [
+    { key: "status", operation: eq, value: "1" }
+    { key: "includeInNav", operation: eq, value: "1" }
+  ]) {
+    items {
+      categoryId
+      name
+      url
+      hasChildren
+    }
+    total
+    currentPage
+  }
+}
+```
+
+### Collection Queries
+
+#### collection
+
+Retrieve a product collection by code.
+
+```graphql
+query {
+  collection(code: "featured") {
+    collectionId
+    name
+    description
+    products {
+      items {
+        productId
+        name
+      }
+      total
+    }
+  }
+}
+```
+
+**Parameters:**
+- `code` (String) - Collection code
+
+#### collections
+
+List all collections.
+
+```graphql
+query {
+  collections {
+    items {
+      collectionId
+      name
+      code
+    }
+    total
+  }
+}
+```
+
+### Attribute Queries
+
+#### attribute
+
+Get attribute details.
+
+```graphql
+query {
+  attribute(id: 1) {
+    attributeId
+    attributeCode
+    attributeName
+    type
+    isRequired
+    isFilterable
+    options {
+      attributeOptionId
+      optionText
+    }
+  }
+}
+```
+
+## Checkout Queries
+
+### Cart Queries
+
+#### cart
+
+Retrieve a cart by ID.
+
+```graphql
+query {
+  cart(id: "cart-uuid-123") {
+    cartId
+    uuid
+    status
+    items {
+      uuid
+      productName
+      productSku
+      qty
+      productPrice {
+        value
+        text
+      }
+      lineTotal {
+        value
+        text
+      }
+    }
+    subTotal {
+      value
+      text
+    }
+    grandTotal {
+      value
+      text
+    }
+    shippingAddress {
+      fullName
+      address1
+      city
+      postcode
+      country {
+        name
+        code
+      }
+    }
+  }
+}
+```
+
+**Parameters:**
+- `id` (String!) - Cart UUID
+
+#### myCart
+
+Get the current user's cart.
+
+```graphql
+query {
+  myCart {
+    uuid
+    totalQty
+    items {
+      uuid
+      productName
+      qty
+      finalPrice {
+        value
+        text
+      }
+      variantOptions {
+        attributeName
+        optionText
+      }
+    }
+    availableShippingMethods(
+      country: "US"
+      province: "CA"
+      postcode: "90210"
+    ) {
+      code
+      name
+      cost {
+        value
+        text
+      }
+    }
+    availablePaymentMethods {
+      code
+      name
+    }
+  }
+}
+```
+
+## Customer Queries
+
+### currentCustomer
+
+Get the authenticated customer's information.
+
+```graphql
+query {
+  currentCustomer {
+    customerId
+    uuid
+    email
+    fullName
+    status
+    addresses {
+      uuid
+      fullName
+      address1
+      address2
+      city
+      postcode
+      telephone
+      country {
+        name
+        code
+      }
+      province {
+        name
+        code
+      }
+      isDefault
+    }
+    orders {
+      orderId
+      orderNumber
+      status {
+        name
+        badge
+      }
+      grandTotal {
+        value
+        text
+      }
+      createdAt
+    }
+  }
+}
+```
+
+### customer (Admin)
+
+Retrieve a specific customer (admin only).
+
+```graphql
+query {
+  customer(id: "customer-uuid") {
+    customerId
+    email
+    fullName
+    status
+    createdAt
+  }
+}
+```
+
+### customers (Admin)
+
+List all customers with filtering (admin only).
+
+```graphql
+query {
+  customers(filters: [
+    { key: "status", operation: eq, value: "1" }
+  ]) {
+    items {
+      customerId
+      email
+      fullName
+    }
+    total
+  }
+}
+```
+
+## Order Queries
+
+### order
+
+Retrieve an order by UUID.
+
+```graphql
+query {
+  order(uuid: "order-uuid-123") {
+    orderId
+    orderNumber
+    status {
+      name
+      code
+      badge
+    }
+    items {
+      productName
+      productSku
+      qty
+      finalPrice {
+        value
+        text
+      }
+    }
+    shippingAddress {
+      fullName
+      address1
+      city
+      country {
+        name
+      }
+    }
+    paymentStatus {
+      name
+      badge
+    }
+    shipmentStatus {
+      name
+      badge
+    }
+    subTotal {
+      value
+      text
+    }
+    shippingFeeInclTax {
+      value
+      text
+    }
+    grandTotal {
+      value
+      text
+    }
+    createdAt
+  }
+}
+```
+
+**Parameters:**
+- `uuid` (String!) - Order UUID
+
+### orders (Admin)
+
+List all orders (admin only).
+
+```graphql
+query {
+  orders(filters: [
+    { key: "status", operation: eq, value: "pending" }
+  ]) {
+    items {
+      orderId
+      orderNumber
+      customerEmail
+      grandTotal {
+        value
+        text
+      }
+      status {
+        name
+      }
+      createdAt
+    }
+    total
+    currentPage
+  }
+}
+```
+
+### Order Status Queries
+
+```graphql
+query {
+  statusList {
+    name
+    code
+    badge
+  }
+  
+  paymentStatusList {
+    name
+    code
+    badge
+    isDefault
+    isCancelable
+  }
+  
+  shipmentStatusList {
+    name
+    code
+    badge
+    isDefault
+    isCancelable
+  }
+}
+```
+
+## CMS Queries
+
+### cmsPage
+
+Retrieve a CMS page.
+
+```graphql
+query {
+  cmsPage(id: 1) {
+    cmsPageId
+    uuid
+    name
+    urlKey
+    content
+    metaTitle
+    metaDescription
+    url
+  }
+}
+```
+
+### currentCmsPage
+
+Get the current CMS page from context.
+
+```graphql
+query {
+  currentCmsPage {
+    name
+    content
+    metaTitle
+  }
+}
+```
+
+### cmsPages
+
+List all CMS pages.
+
+```graphql
+query {
+  cmsPages(filters: [
+    { key: "status", operation: eq, value: "1" }
+  ]) {
+    items {
+      cmsPageId
+      name
+      urlKey
+    }
+    total
+  }
+}
+```
+
+### menu
+
+Retrieve the site menu structure.
+
+```graphql
+query {
+  menu {
+    items {
+      name
+      url
+      children {
+        name
+        url
+      }
+    }
+  }
+}
+```
+
+## Base Queries
+
+### countries
+
+Get list of countries.
+
+```graphql
+query {
+  countries {
+    name
+    code
+    provinces {
+      name
+      code
+    }
+  }
+}
+```
+
+### allowedCountries
+
+Get countries enabled for the store.
+
+```graphql
+query {
+  allowedCountries {
+    name
+    code
+  }
+}
+```
+
+### provinces
+
+Get provinces for specific countries.
+
+```graphql
+query {
+  provinces(countries: ["US", "CA"]) {
+    name
+    code
+    countryCode
+  }
+}
+```
+
+## Query Best Practices
+
+<AccordionGroup>
+  <Accordion title="Request Only What You Need">
+    GraphQL allows you to request exactly the fields you need. Avoid requesting unnecessary data:
+    
+    ```graphql
+    # Good - Only request needed fields
+    query {
+      product(id: "123") {
+        name
+        price { regular { value } }
+      }
+    }
+    
+    # Avoid - Requesting all fields when not needed
+    ```
+  </Accordion>
+
+  <Accordion title="Use Variables for Dynamic Queries">
+    Use variables instead of inline values:
+    
+    ```graphql
+    query GetProduct($id: ID!) {
+      product(id: $id) {
+        name
+        sku
+      }
+    }
+    ```
+    
+    Variables: `{ "id": "123" }`
+  </Accordion>
+
+  <Accordion title="Leverage Fragments">
+    Use fragments to reuse field selections:
+    
+    ```graphql
+    fragment PriceFields on Price {
+      value
+      currency
+      text
+    }
+    
+    query {
+      product(id: "123") {
+        price {
+          regular { ...PriceFields }
+          special { ...PriceFields }
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Pagination">
+    Use filters and limit results for large collections:
+    
+    ```graphql
+    query {
+      products(filters: [
+        { key: "page", operation: eq, value: "1" }
+        { key: "limit", operation: eq, value: "20" }
+      ]) {
+        items { name }
+        total
+        currentPage
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Mutations" icon="pencil" href="/api/graphql/mutations">
+    Learn about data modification operations
+  </Card>
+  <Card title="Types" icon="shapes" href="/api/graphql/types">
+    Explore all GraphQL types and their fields
+  </Card>
+</CardGroup>

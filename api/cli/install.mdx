@@ -1,0 +1,407 @@
+---
+title: evershop install
+description: Interactive setup wizard for configuring EverShop database and admin user
+---
+
+## Overview
+
+The `evershop install` command runs an interactive setup wizard that guides you through configuring your EverShop store. It creates the database connection, runs migrations, and creates an admin user.
+
+## Usage
+
+```bash
+evershop install
+```
+
+## When to Use
+
+Run the install command when:
+
+- Setting up EverShop for the first time
+- Installing on a local development machine
+- Deploying to a new server
+
+**Note**: If using Docker, do not run this command. Instead, set environment variables in your `docker-compose.yml` file.
+
+## Interactive Prompts
+
+The installer will ask for:
+
+### Database Configuration
+
+```
+┌─────────────────────────────────────────────────┐
+│                                                 │
+│   Welcome to EverShop                           │
+│   The open-source e-commerce platform           │
+│                                                 │
+└─────────────────────────────────────────────────┘
+
+? Postgres Database Host (localhost): localhost
+? Postgres Database Port (5432): 5432
+? Postgres Database Name (evershop): evershop
+? Postgres Database User (postgres): postgres
+? PostgreSQL Database Password (<empty>): ********
+```
+
+### Admin User Details
+
+```
+? Your full name: John Doe
+? Your administrator user email: admin@example.com
+? Your administrator user password: ********
+```
+
+## Password Requirements
+
+Admin password must:
+
+- Be at least 8 characters long
+- Contain at least one letter
+- Contain at least one digit
+
+```javascript
+// From src/bin/install/index.js
+validate: (value) => {
+  if (value.length < 8) {
+    return 'Your password must be at least 8 characters.';
+  }
+  if (value.search(/[a-z]/i) < 0) {
+    return 'Your password must contain at least one letter.';
+  }
+  if (value.search(/[0-9]/) < 0) {
+    return 'Your password must contain at least one digit.';
+  }
+  return true;
+}
+```
+
+## What It Does
+
+### 1. Check Existing Installation
+
+Verifies if the system is already installed:
+
+```javascript
+if (process.env.DB_HOST) {
+  error('We found that you have already set the environment variables...');
+  process.exit(0);
+}
+```
+
+### 2. Test Database Connection
+
+Tries to connect with SSL first, falls back to non-SSL:
+
+```javascript
+let pool = new Pool({ ...baseDBSetting, ssl: true });
+try {
+  await pool.query(`SELECT 1`);
+  sslMode = 'require';
+} catch (e) {
+  if (e.message.includes('does not support SSL')) {
+    pool = new Pool({ ...baseDBSetting, ssl: false });
+    sslMode = 'disable';
+  }
+}
+```
+
+### 3. Verify PostgreSQL Version
+
+Ensures PostgreSQL 13.0 or higher:
+
+```javascript
+const { rows } = await execute(pool, `SHOW SERVER_VERSION;`);
+if (rows[0].server_version < '13.0') {
+  error('Your database server version is not supported...');
+}
+```
+
+### 4. Create .env File
+
+Writes database credentials to `.env`:
+
+```bash
+DB_HOST="localhost"
+DB_PORT="5432"
+DB_NAME="evershop"
+DB_USER="postgres"
+DB_PASSWORD="your_password"
+DB_SSLMODE="require"
+```
+
+### 5. Create Directories
+
+Creates required folders:
+
+```javascript
+await mkdir(path.resolve(CONSTANTS.ROOTPATH, 'media'), { recursive: true });
+await mkdir(path.resolve(CONSTANTS.ROOTPATH, 'public'), { recursive: true });
+```
+
+### 6. Create Admin User Table
+
+Creates the admin_user table:
+
+```sql
+CREATE TABLE IF NOT EXISTS "admin_user" (
+  "admin_user_id" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  "uuid" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "status" boolean NOT NULL DEFAULT TRUE,
+  "email" varchar NOT NULL,
+  "password" varchar NOT NULL,
+  "full_name" varchar DEFAULT NULL,
+  "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ADMIN_USER_EMAIL_UNIQUE" UNIQUE ("email"),
+  CONSTRAINT "ADMIN_USER_UUID_UNIQUE" UNIQUE ("uuid")
+);
+```
+
+### 7. Insert Admin User
+
+Creates the admin account with hashed password:
+
+```javascript
+const passwordHash = hashPassword(adminUser.password);
+await insertOnUpdate('admin_user', ['email'])
+  .given({
+    status: 1,
+    email: adminUser.email,
+    password: passwordHash,
+    full_name: adminUser.fullName
+  })
+  .execute(connection);
+```
+
+### 8. Run Migrations
+
+Executes database migrations for all core modules:
+
+```javascript
+const coreModules = getCoreModules();
+await migrate(coreModules, connection);
+```
+
+## Installation Progress
+
+Visual progress during installation:
+
+```
+EverShop is being installed ☕ ☕ ☕
+✓ Created .env file
+✓ Setting up a database
+✓ Setup database
+✓ Create admin user
+
+┌─────────────────────────────────────────────────┐
+│                                                 │
+│   Installation completed!                       │
+│   Run `npm run build` and `npm run start`       │
+│   to launch your store                          │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+## After Installation
+
+Next steps:
+
+```bash
+# 1. Build the application
+npm run build
+
+# 2. Start the production server
+npm run start
+
+# 3. Access your store
+# Frontend: http://localhost:3000
+# Admin: http://localhost:3000/admin
+```
+
+## Environment Variables
+
+The installer creates these environment variables in `.env`:
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `DB_HOST` | Database host | `localhost` |
+| `DB_PORT` | Database port | `5432` |
+| `DB_NAME` | Database name | `evershop` |
+| `DB_USER` | Database user | `postgres` |
+| `DB_PASSWORD` | Database password | `your_password` |
+| `DB_SSLMODE` | SSL mode | `require` or `disable` |
+
+## PostgreSQL Requirements
+
+### Minimum Version
+
+PostgreSQL 13.0 or higher is required.
+
+### Required Extensions
+
+EverShop uses:
+
+- `uuid-ossp` - UUID generation
+- `pg_trgm` - Text search
+
+These are typically included by default.
+
+## Database Setup
+
+### Create Database
+
+Before running install:
+
+```bash
+# Connect to PostgreSQL
+psql -U postgres
+
+# Create database
+CREATE DATABASE evershop;
+
+# Create user (optional)
+CREATE USER evershop WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE evershop TO evershop;
+```
+
+### Database Permissions
+
+The database user needs:
+
+- `CREATE` - Create tables
+- `INSERT` - Insert data
+- `UPDATE` - Update data
+- `DELETE` - Delete data
+- `SELECT` - Query data
+
+## Troubleshooting
+
+### Already Installed Error
+
+```
+We found that you have already set the environment variables
+```
+
+**Solution**: 
+- Remove `.env` file to reinstall
+- Or skip install and run `npm run build`
+
+### Database Connection Failed
+
+```
+Error: Connection terminated
+```
+
+**Solution**:
+1. Verify PostgreSQL is running:
+   ```bash
+   sudo systemctl status postgresql
+   ```
+
+2. Check database exists:
+   ```bash
+   psql -U postgres -l
+   ```
+
+3. Test connection:
+   ```bash
+   psql -h localhost -U postgres -d evershop
+   ```
+
+### PostgreSQL Version Error
+
+```
+Your database server version (12.5) is not supported
+```
+
+**Solution**: Upgrade PostgreSQL to version 13.0 or higher.
+
+### SSL Certificate Error
+
+```
+Looks like your database server does not have a valid SSL certificate
+```
+
+**Solution**: 
+1. Disable SSL in PostgreSQL configuration
+2. Restart PostgreSQL
+3. Run install again
+
+### Password Validation Failed
+
+```
+Your password must be at least 8 characters
+```
+
+**Solution**: Choose a stronger password that meets requirements.
+
+### Permission Denied
+
+```
+Error: Permission denied creating .env file
+```
+
+**Solution**: Run with appropriate permissions:
+```bash
+sudo evershop install
+```
+
+## Automated Installation
+
+For CI/CD or automated deployments, set environment variables before installation:
+
+```bash
+# Set database variables
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_NAME=evershop
+export DB_USER=postgres
+export DB_PASSWORD=your_password
+
+# Set admin user variables
+export ADMIN_FULLNAME="Admin User"
+export ADMIN_EMAIL="admin@example.com"
+export ADMIN_PASSWORD="SecurePass123"
+
+# Run install (will use environment variables)
+evershop install
+```
+
+The installer will skip prompts when environment variables are set.
+
+## Docker Installation
+
+For Docker deployments, use environment variables in `docker-compose.yml`:
+
+```yaml
+services:
+  evershop:
+    image: evershop/evershop
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: evershop
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      ADMIN_FULLNAME: Admin
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: SecurePass123
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: evershop
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+```
+
+**Do not run** `evershop install` in Docker - the container handles initialization.
+
+## Related Commands
+
+- `evershop build` - Build after installation
+- `evershop start` - Start production server
+- `evershop user:create` - Create additional admin users

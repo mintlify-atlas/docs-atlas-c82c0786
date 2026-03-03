@@ -1,0 +1,954 @@
+---
+title: GraphQL Types
+description: Complete reference of all GraphQL types used in EverShop
+---
+
+## Overview
+
+EverShop's GraphQL schema includes a comprehensive set of types organized by domain. This reference covers all the types, their fields, and relationships.
+
+## Catalog Types
+
+### Product
+
+Represents a product in the catalog.
+
+```graphql
+type Product {
+  productId: Int!
+  uuid: String!
+  name: String!
+  status: Int!
+  sku: String!
+  weight: Weight!
+  noShippingRequired: Boolean
+  taxClass: Int
+  description: JSON
+  urlKey: String
+  metaTitle: String
+  metaDescription: String
+  metaKeywords: String
+  variantGroupId: ID
+  visibility: Int
+  groupId: ID
+  url: String
+  
+  # Extended fields
+  price: ProductPrice!
+  image: Image
+  gallery: [Image]
+  inventory: Inventory!
+  category: Category
+  collections: [Collection]
+  variantGroup: VariantGroup
+  
+  # Admin only
+  editUrl: String
+  updateApi: String!
+  deleteApi: String!
+  removeFromCategoryUrl: String
+}
+```
+
+**Key Fields:**
+- `productId` - Internal product ID
+- `uuid` - Universal unique identifier
+- `sku` - Stock keeping unit (unique)
+- `status` - 0 = disabled, 1 = enabled
+- `weight` - Product weight with unit
+- `price` - Regular and special pricing
+- `inventory` - Stock availability
+
+### ProductPrice
+
+Product pricing information.
+
+```graphql
+type ProductPrice {
+  regular: Price!
+  special: Price!
+}
+```
+
+### Image
+
+Product image.
+
+```graphql
+type Image {
+  id: ID!
+  uuid: String!
+  alt: String
+  url: String
+  listing: String @deprecated
+  single: String @deprecated
+  thumb: String @deprecated
+  origin: String @deprecated
+}
+```
+
+### Inventory
+
+Product inventory information.
+
+```graphql
+type Inventory {
+  isInStock: Boolean!
+  stockAvailability: Int!
+  manageStock: Int!
+}
+```
+
+**Values:**
+- `isInStock` - Boolean availability
+- `stockAvailability` - Quantity available
+- `manageStock` - 0 = don't track, 1 = track inventory
+
+### ProductCollection
+
+Paginated collection of products.
+
+```graphql
+type ProductCollection {
+  items: [Product]
+  currentPage: Int!
+  total: Int!
+  currentFilters: [Filter]
+}
+```
+
+### Category
+
+Product category.
+
+```graphql
+type Category {
+  categoryId: Int!
+  uuid: String!
+  name: String!
+  status: Int!
+  includeInNav: Int!
+  showProducts: Int!
+  description: JSON
+  urlKey: String
+  metaTitle: String
+  metaDescription: String
+  metaKeywords: String
+  url: String
+  hasChildren: Boolean!
+  
+  image: CategoryImage
+  products(filters: [FilterInput]): ProductCollection
+  children: [Category]
+  parent: Category
+  path: [Category]
+  availableAttributes: [FilterAttribute]
+  priceRange: PriceRange
+  
+  # Admin only
+  editUrl: String
+  updateApi: String!
+  deleteApi: String!
+  addProductUrl: String
+}
+```
+
+### CategoryImage
+
+```graphql
+type CategoryImage {
+  alt: String!
+  url: String!
+}
+```
+
+### Collection
+
+Product collection.
+
+```graphql
+type Collection {
+  collectionId: Int!
+  uuid: String!
+  name: String!
+  description: JSON
+  code: String!
+  products(filters: [FilterInput]): ProductCollection
+}
+```
+
+### Attribute
+
+Product attribute definition.
+
+```graphql
+type Attribute {
+  attributeId: ID!
+  uuid: String!
+  attributeCode: String!
+  attributeName: String!
+  type: String!
+  isRequired: Int!
+  displayOnFrontend: Int!
+  sortOrder: Int!
+  isFilterable: Int!
+  options: [AttributeOption]
+}
+```
+
+**Attribute Types:**
+- `text` - Text input
+- `textarea` - Multi-line text
+- `select` - Single select dropdown
+- `multiselect` - Multiple select
+
+### AttributeOption
+
+```graphql
+type AttributeOption {
+  attributeOptionId: ID!
+  uuid: String!
+  optionText: String!
+}
+```
+
+### VariantGroup
+
+Product variants group.
+
+```graphql
+type VariantGroup {
+  variantGroupId: Int!
+  variantAttributes: [VariantAttribute]!
+  items: [Variant]
+  addItemApi: String!
+}
+```
+
+### Variant
+
+Single product variant.
+
+```graphql
+type Variant {
+  id: String!
+  product: Product!
+  attributes: [VariantAttributeIndex]!
+  removeUrl: String!
+}
+```
+
+### VariantAttribute
+
+```graphql
+type VariantAttribute {
+  attributeId: Int!
+  attributeCode: String!
+  attributeName: String!
+  options: [VariantAttributeOption]
+}
+```
+
+## Checkout Types
+
+### Cart
+
+Shopping cart implementing ShoppingCart interface.
+
+```graphql
+type Cart implements ShoppingCart {
+  cartId: ID!
+  uuid: String!
+  status: Int!
+  currency: String!
+  customerId: Int
+  customerGroupId: Int
+  customerEmail: String
+  customerFullName: String
+  userIp: String
+  userId: String
+  coupon: String
+  noShippingRequired: Boolean!
+  
+  items: [CartItem]
+  shippingAddress: CartAddress
+  billingAddress: CartAddress
+  
+  # Pricing
+  subTotal: Price!
+  subTotalInclTax: Price!
+  subTotalWithDiscount: Price!
+  subTotalWithDiscountInclTax: Price!
+  shippingFeeExclTax: Price!
+  shippingFeeInclTax: Price!
+  shippingTaxAmount: Price!
+  taxAmount: Price!
+  taxAmountBeforeDiscount: Price!
+  totalTaxAmount: Price!
+  discountAmount: Price!
+  grandTotal: Price!
+  
+  totalQty: Int!
+  totalWeight: Weight!
+  
+  shippingMethod: String
+  shippingMethodName: String
+  paymentMethod: String
+  paymentMethodName: String
+  shippingNote: String
+  
+  # API endpoints
+  addItemApi: String!
+  addPaymentMethodApi: String!
+  addShippingMethodApi: String!
+  addContactInfoApi: String!
+  addAddressApi: String!
+  addNoteApi: String!
+  checkoutApi: String!
+  
+  # Available methods
+  availableShippingMethods(
+    country: String
+    province: String
+    postcode: String
+  ): [AvailableShippingMethod]
+  availablePaymentMethods: [AvailablePaymentMethod]
+  
+  createdAt: Date!
+  updatedAt: Date!
+}
+```
+
+### CartItem
+
+Item in shopping cart.
+
+```graphql
+type CartItem implements ShoppingCartItem {
+  cartItemId: ID
+  uuid: String!
+  cartId: ID!
+  productId: ID!
+  productSku: String!
+  productName: String
+  thumbnail: String
+  qty: Int!
+  noShippingRequired: Boolean!
+  
+  productWeight: Weight!
+  productPrice: Price!
+  productPriceInclTax: Price!
+  finalPrice: Price!
+  finalPriceInclTax: Price!
+  
+  taxPercent: Float!
+  taxAmount: Price!
+  taxAmountBeforeDiscount: Price!
+  discountAmount: Price!
+  
+  lineTotal: Price!
+  lineTotalWithDiscount: Price!
+  lineTotalWithDiscountInclTax: Price!
+  lineTotalInclTax: Price!
+  
+  subTotal: Price! @deprecated
+  total: Price! @deprecated
+  
+  variantGroupId: Int
+  variantOptions: [VariantOption]
+  productCustomOptions: String
+  productUrl: String
+  errors: [String!]
+  
+  removeApi: String!
+  updateQtyApi: String!
+}
+```
+
+### CartAddress
+
+Address in cart.
+
+```graphql
+type CartAddress implements Address {
+  cartAddressId: Int!
+  uuid: String!
+  fullName: String
+  postcode: String
+  telephone: String
+  country: Country
+  province: Province
+  city: String
+  address1: String
+  address2: String
+}
+```
+
+### AvailableShippingMethod
+
+```graphql
+type AvailableShippingMethod {
+  id: String!
+  code: String!
+  name: String!
+  cost: Price!
+}
+```
+
+### AvailablePaymentMethod
+
+```graphql
+type AvailablePaymentMethod {
+  code: String!
+  name: String!
+}
+```
+
+### Price
+
+Monetary value.
+
+```graphql
+type Price {
+  value: Float!
+  currency(currency: String): String!
+  text(currency: String): String!
+}
+```
+
+**Example:**
+```json
+{
+  "value": 29.99,
+  "currency": "USD",
+  "text": "$29.99"
+}
+```
+
+### Weight
+
+Weight measurement.
+
+```graphql
+type Weight {
+  value: Float!
+  unit: String!
+  text: String!
+}
+```
+
+**Example:**
+```json
+{
+  "value": 1.5,
+  "unit": "kg",
+  "text": "1.5 kg"
+}
+```
+
+## Customer Types
+
+### Customer
+
+Customer account.
+
+```graphql
+type Customer {
+  customerId: Int!
+  uuid: String!
+  status: Int!
+  email: String!
+  fullName: String!
+  createdAt: Date!
+  
+  addresses: [CustomerAddress]
+  orders: [Order]
+  
+  addAddressApi: String!
+  
+  # Admin only
+  editUrl: String!
+  updateApi: String!
+  deleteApi: String!
+}
+```
+
+### CustomerAddress
+
+```graphql
+type CustomerAddress implements Address {
+  cartAddressId: Int!
+  uuid: String!
+  fullName: String
+  postcode: String
+  telephone: String
+  country: Country
+  province: Province
+  city: String
+  address1: String
+  address2: String
+  isDefault: Boolean
+  updateApi: String!
+  deleteApi: String!
+}
+```
+
+### CustomerCollection
+
+```graphql
+type CustomerCollection {
+  items: [Customer]
+  currentPage: Int!
+  total: Int!
+  currentFilters: [Filter]
+}
+```
+
+## Order Types
+
+### Order
+
+Order implementing ShoppingCart interface.
+
+```graphql
+type Order implements ShoppingCart {
+  orderId: ID!
+  uuid: String!
+  orderNumber: String!
+  status: Status
+  paymentStatus: PaymentStatus
+  shipmentStatus: ShipmentStatus
+  
+  # Inherits all ShoppingCart fields
+  currency: String!
+  items: [OrderItem]
+  shippingAddress: OrderAddress
+  billingAddress: OrderAddress
+  
+  # Pricing (same as Cart)
+  subTotal: Price!
+  grandTotal: Price!
+  # ... all pricing fields
+  
+  activities: [Activity]
+  shipment: Shipment
+  
+  createdAt: Date!
+  updatedAt: Date!
+  
+  # Admin only
+  customerUrl: String
+  editUrl: String!
+  createShipmentApi: String!
+  cancelApi: String!
+}
+```
+
+### OrderItem
+
+```graphql
+type OrderItem implements ShoppingCartItem {
+  orderItemId: ID!
+  uuid: String!
+  orderId: ID!
+  productId: ID!
+  productSku: String!
+  productName: String
+  qty: Int!
+  
+  # All pricing fields from ShoppingCartItem
+  productPrice: Price!
+  finalPrice: Price!
+  lineTotal: Price!
+  # ... etc
+  
+  variantOptions: [VariantOption]
+}
+```
+
+### OrderAddress
+
+```graphql
+type OrderAddress implements Address {
+  orderAddressId: Int!
+  uuid: String!
+  fullName: String
+  postcode: String
+  telephone: String
+  country: Country
+  province: Province
+  city: String
+  address1: String
+  address2: String
+}
+```
+
+### Status
+
+Order status.
+
+```graphql
+type Status {
+  name: String
+  code: String
+  badge: String
+}
+```
+
+### PaymentStatus
+
+```graphql
+type PaymentStatus {
+  name: String
+  code: String
+  badge: String
+  isDefault: Boolean
+  isCancelable: Boolean
+}
+```
+
+### ShipmentStatus
+
+```graphql
+type ShipmentStatus {
+  name: String
+  code: String
+  badge: String
+  isDefault: Boolean
+  isCancelable: Boolean
+}
+```
+
+### Shipment
+
+```graphql
+type Shipment {
+  shipmentId: Int!
+  uuid: String!
+  carrier: String
+  trackingNumber: String
+  createdAt: DateTime!
+  updatedAt: DateTime
+  
+  # Admin only
+  updateShipmentApi: String!
+}
+```
+
+### Activity
+
+Order activity log.
+
+```graphql
+type Activity {
+  orderActivityId: Int!
+  comment: String
+  customerNotified: Int!
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+```
+
+### OrderCollection
+
+```graphql
+type OrderCollection {
+  items: [Order]
+  currentPage: Int!
+  total: Int!
+  currentFilters: [Filter]
+}
+```
+
+## CMS Types
+
+### CmsPage
+
+```graphql
+type CmsPage {
+  cmsPageId: Int
+  uuid: String!
+  status: Int!
+  urlKey: String!
+  name: String!
+  content: JSON!
+  metaTitle: String
+  metaKeywords: String
+  metaDescription: String
+  url: String!
+  editUrl: String!
+  updateApi: String!
+  deleteApi: String!
+}
+```
+
+### CmsPageCollection
+
+```graphql
+type CmsPageCollection {
+  items: [CmsPage]
+  currentPage: Int!
+  total: Int!
+  currentFilters: [Filter]
+}
+```
+
+### Menu
+
+```graphql
+type Menu {
+  items: [MenuItem]
+}
+```
+
+### MenuItem
+
+```graphql
+type MenuItem {
+  name: String!
+  url: String!
+  children: [MenuItem]
+}
+```
+
+## Base Types
+
+### Country
+
+```graphql
+type Country {
+  name: String!
+  code: String!
+  provinces: [Province]
+}
+```
+
+### Province
+
+State or province.
+
+```graphql
+type Province {
+  name: String!
+  code: String!
+  countryCode: String!
+}
+```
+
+### Date
+
+Date scalar.
+
+```graphql
+scalar Date
+```
+
+Represents a date in ISO 8601 format (YYYY-MM-DD).
+
+### DateTime
+
+DateTime scalar.
+
+```graphql
+scalar DateTime
+```
+
+Represents a timestamp in ISO 8601 format.
+
+### JSON
+
+JSON scalar.
+
+```graphql
+scalar JSON
+```
+
+Represents arbitrary JSON data.
+
+## Interface Types
+
+### ShoppingCart
+
+Shared interface for Cart and Order.
+
+```graphql
+interface ShoppingCart {
+  uuid: String!
+  currency: String!
+  customerId: Int
+  customerGroupId: Int
+  customerEmail: String
+  customerFullName: String
+  noShippingRequired: Boolean!
+  
+  shippingFeeExclTax: Price!
+  shippingFeeInclTax: Price!
+  shippingTaxAmount: Price!
+  discountAmount: Price!
+  subTotal: Price!
+  subTotalInclTax: Price!
+  grandTotal: Price!
+  
+  totalQty: Int!
+  totalWeight: Weight!
+  
+  shippingMethod: String
+  shippingMethodName: String
+  shippingAddress: Address
+  paymentMethod: String
+  paymentMethodName: String
+  billingAddress: Address
+  shippingNote: String
+  
+  createdAt: Date!
+  updatedAt: Date!
+}
+```
+
+### ShoppingCartItem
+
+Shared interface for CartItem and OrderItem.
+
+```graphql
+interface ShoppingCartItem {
+  uuid: String!
+  productId: ID!
+  productSku: String!
+  productName: String
+  thumbnail: String
+  noShippingRequired: Boolean!
+  productWeight: Weight!
+  qty: Int!
+  
+  productPrice: Price!
+  productPriceInclTax: Price!
+  finalPrice: Price!
+  finalPriceInclTax: Price!
+  
+  taxPercent: Float!
+  taxAmount: Price!
+  discountAmount: Price!
+  
+  lineTotal: Price!
+  lineTotalWithDiscount: Price!
+  lineTotalInclTax: Price!
+  
+  variantGroupId: Int
+  variantOptions: [VariantOption]
+  productUrl: String
+}
+```
+
+### Address
+
+Shared address interface.
+
+```graphql
+interface Address {
+  fullName: String
+  postcode: String
+  telephone: String
+  country: Country
+  province: Province
+  city: String
+  address1: String
+  address2: String
+}
+```
+
+## Input Types
+
+### FilterInput
+
+Input for filtering collections.
+
+```graphql
+input FilterInput {
+  key: String!
+  operation: FilterOperation!
+  value: ID
+}
+```
+
+### FilterOperation
+
+Filter operations enum.
+
+```graphql
+enum FilterOperation {
+  eq      # Equal
+  neq     # Not equal
+  gt      # Greater than
+  gteq    # Greater than or equal
+  lt      # Less than
+  lteq    # Less than or equal
+  like    # Pattern match
+  nlike   # Not like
+  in      # In array
+  nin     # Not in array
+}
+```
+
+### Filter
+
+Applied filter.
+
+```graphql
+type Filter {
+  key: String!
+  operation: String!
+  value: String!
+}
+```
+
+## Common Patterns
+
+### Pagination
+
+All collection types follow this pattern:
+
+```graphql
+type EntityCollection {
+  items: [Entity]
+  currentPage: Int!
+  total: Int!
+  currentFilters: [Filter]
+}
+```
+
+### API URLs
+
+Many types include API endpoint URLs:
+
+```graphql
+type Entity {
+  # ... fields
+  updateApi: String!
+  deleteApi: String!
+}
+```
+
+### Variant Options
+
+Variant selections:
+
+```graphql
+type VariantOption {
+  attributeCode: String!
+  attributeName: String!
+  attributeId: Int!
+  optionId: Int!
+  optionText: String!
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Schema" icon="sitemap" href="/api/graphql/schema">
+    Learn how the GraphQL schema is built
+  </Card>
+  <Card title="Queries" icon="search" href="/api/graphql/queries">
+    Explore available GraphQL queries
+  </Card>
+</CardGroup>

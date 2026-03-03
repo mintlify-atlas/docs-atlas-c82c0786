@@ -1,0 +1,544 @@
+---
+title: Hooks and Events
+description: Available hooks, event listeners, and extending functionality in EverShop
+---
+
+EverShop's event system allows extensions to react to system events and extend functionality without modifying core code.
+
+## Event System Overview
+
+The event system uses a publish-subscribe pattern where:
+
+1. **Emitters** publish events when actions occur
+2. **Subscribers** listen for specific events and react
+3. **Events** are stored in the database and processed asynchronously
+
+This decoupled architecture allows multiple extensions to respond to the same event independently.
+
+## Available Events
+
+EverShop provides built-in events for common operations. All events are type-safe and provide structured data.
+
+### Product Events
+
+#### product_created
+
+Fired when a new product is created.
+
+```typescript
+import { EventSubscriber } from '@evershop/evershop/lib/event/subscriber';
+
+const handler: EventSubscriber<'product_created'> = async (data) => {
+  // data contains complete product table row
+  console.log('New product:', {
+    id: data.product_id,
+    uuid: data.uuid,
+    name: data.name,
+    sku: data.sku,
+    price: data.price,
+    category_id: data.category_id
+  });
+  
+  // Add your logic here
+};
+
+export default handler;
+```
+
+**Data Type**: `ProductRow`
+
+#### product_updated
+
+Fired when a product is updated.
+
+```typescript
+const handler: EventSubscriber<'product_updated'> = async (data) => {
+  console.log('Product updated:', data.product_id);
+  
+  // Sync with external systems
+  // Update search index
+  // Invalidate cache
+};
+
+export default handler;
+```
+
+**Data Type**: `ProductRow`
+
+#### product_deleted
+
+Fired when a product is deleted.
+
+```typescript
+const handler: EventSubscriber<'product_deleted'> = async (data) => {
+  console.log('Product deleted:', data.product_id);
+  
+  // Clean up related data
+  // Remove from search index
+};
+
+export default handler;
+```
+
+**Data Type**: `ProductRow`
+
+#### product_image_added
+
+Fired when an image is added to a product.
+
+**Data Type**: `ProductImageRow`
+
+### Category Events
+
+#### category_created
+
+Fired when a new category is created.
+
+```typescript
+const handler: EventSubscriber<'category_created'> = async (data) => {
+  // Build URL rewrites, update navigation, etc.
+  console.log('New category:', data.category_id);
+};
+
+export default handler;
+```
+
+**Data Type**: `CategoryRow`
+
+#### category_updated
+
+Fired when a category is updated.
+
+**Data Type**: `CategoryRow`
+
+#### category_deleted
+
+Fired when a category is deleted.
+
+**Data Type**: `CategoryRow`
+
+### Customer Events
+
+#### customer_registered
+
+Fired when a customer registers on the storefront.
+
+```typescript
+import { EventSubscriber } from '@evershop/evershop/lib/event/subscriber';
+
+const sendWelcomeEmail: EventSubscriber<'customer_registered'> = async (data) => {
+  // Send welcome email
+  console.log('New customer registered:', {
+    id: data.customer_id,
+    email: data.email,
+    full_name: data.full_name
+  });
+  
+  // Send to email service
+  // await emailService.sendWelcome(data.email, data.full_name);
+};
+
+export default sendWelcomeEmail;
+```
+
+**Data Type**: `CustomerRow`
+
+#### customer_created
+
+Fired when a customer is created by admin.
+
+**Data Type**: `CustomerRow`
+
+#### customer_updated
+
+Fired when a customer is updated.
+
+**Data Type**: `CustomerRow`
+
+#### customer_deleted
+
+Fired when a customer is deleted.
+
+**Data Type**: `CustomerRow`
+
+### Order Events
+
+#### order_created
+
+Fired when a new order is created.
+
+**Data Type**: `OrderRow`
+
+#### order_placed
+
+Fired when an order is successfully placed.
+
+```typescript
+const handler: EventSubscriber<'order_placed'> = async (data) => {
+  console.log('Order placed:', {
+    order_id: data.order_id,
+    customer_id: data.customer_id,
+    grand_total: data.grand_total,
+    payment_method: data.payment_method
+  });
+  
+  // Send order confirmation
+  // Update inventory
+  // Notify fulfillment
+};
+
+export default handler;
+```
+
+**Data Type**: `OrderRow`
+
+### Inventory Events
+
+#### inventory_updated
+
+Fired when product inventory is updated.
+
+```typescript
+type InventoryData = {
+  old: ProductInventoryRow;
+  new: ProductInventoryRow;
+};
+
+const handler: EventSubscriber<'inventory_updated'> = async (data) => {
+  const qtyChange = data.new.qty - data.old.qty;
+  
+  console.log('Inventory updated:', {
+    product_id: data.new.product_id,
+    old_qty: data.old.qty,
+    new_qty: data.new.qty,
+    change: qtyChange
+  });
+  
+  // Send low stock alerts
+  if (data.new.qty < 10) {
+    // await alertService.lowStock(data.new.product_id);
+  }
+};
+
+export default handler;
+```
+
+**Data Type**: `{ old: ProductInventoryRow, new: ProductInventoryRow }`
+
+## Creating Event Subscribers
+
+### Directory Structure
+
+Subscribers are organized by event name:
+
+```
+extensions/my-extension/src/subscribers/
+├── product_created/
+│   ├── updateSearchIndex.ts
+│   ├── sendNotification.ts
+│   └── syncExternalSystem.ts
+├── order_placed/
+│   ├── sendConfirmation.ts
+│   └── updateInventory.ts
+└── customer_registered/
+    └── sendWelcomeEmail.ts
+```
+
+All subscribers in an event directory execute when that event fires.
+
+### Basic Subscriber
+
+```javascript
+// src/subscribers/product_created/consoleLog.js
+export default function consoleLog(data) {
+  console.log('Product Created:', data);
+}
+```
+
+### Type-Safe Subscriber
+
+```typescript
+import { EventSubscriber } from '@evershop/evershop/lib/event/subscriber';
+
+const handler: EventSubscriber<'product_created'> = async (data) => {
+  // data is automatically typed as ProductRow
+  // IDE provides autocomplete for all fields
+  console.log(data.product_id); // TypeScript knows this exists
+};
+
+export default handler;
+```
+
+### Using Helper Function
+
+```typescript
+import { createSubscriber } from '@evershop/evershop/lib/event/subscriber';
+
+export default createSubscriber('order_placed', async (data) => {
+  // data is automatically typed
+  await sendEmail(data.order_id);
+});
+```
+
+### Accessing Services
+
+```typescript
+import { EventSubscriber } from '@evershop/evershop/lib/event/subscriber';
+import { pool } from '@evershop/evershop/lib/postgres/connection';
+import { select, insertOnUpdate } from '@evershop/postgres-query-builder';
+import { error } from '@evershop/evershop/lib/log/logger';
+
+const buildUrlRewrite: EventSubscriber<'product_created'> = async (data) => {
+  try {
+    const productId = data.product_id;
+    const productUuid = data.uuid;
+    
+    // Query database
+    const productDescription = await select()
+      .from('product_description')
+      .where('product_description_product_id', '=', productId)
+      .load(pool);
+
+    if (!productDescription) {
+      return;
+    }
+    
+    // Insert URL rewrite
+    await insertOnUpdate('url_rewrite', ['entity_uuid', 'language'])
+      .given({
+        entity_type: 'product',
+        entity_uuid: productUuid,
+        request_path: `/${productDescription.url_key}`,
+        target_path: `/product/${productUuid}`
+      })
+      .execute(pool);
+  } catch (e) {
+    error(e);
+  }
+};
+
+export default buildUrlRewrite;
+```
+
+## Emitting Custom Events
+
+Extensions can emit custom events for other extensions to consume.
+
+### Basic Emit
+
+```typescript
+import { emit } from '@evershop/evershop/lib/event/emitter';
+
+// Emit a custom event
+await emit('custom_event_name', {
+  userId: 123,
+  action: 'performed',
+  timestamp: Date.now()
+});
+```
+
+### Type-Safe Custom Events
+
+Register your custom events in a type declaration file:
+
+```typescript
+// types/events.d.ts
+declare module '@evershop/evershop/types/event' {
+  interface EventDataRegistry {
+    'loyalty_points_earned': {
+      customer_id: number;
+      points: number;
+      order_id: number;
+      timestamp: string;
+    };
+    'product_reviewed': {
+      product_id: number;
+      customer_id: number;
+      rating: number;
+      review: string;
+    };
+  }
+}
+```
+
+Then emit with full type safety:
+
+```typescript
+import { emit } from '@evershop/evershop/lib/event/emitter';
+
+await emit('loyalty_points_earned', {
+  customer_id: 123,
+  points: 100,
+  order_id: 456,
+  timestamp: new Date().toISOString()
+  // TypeScript ensures all required fields are present
+});
+```
+
+## Cron Jobs
+
+Scheduled tasks are registered via the bootstrap file and executed by the cron worker.
+
+### Register a Cron Job
+
+```typescript
+// src/bootstrap.ts
+import path from 'path';
+import { registerJob } from '@evershop/evershop/lib/cronjob';
+
+export default function () {
+  registerJob({
+    name: 'dailyReport',
+    schedule: '0 0 * * *', // Runs daily at midnight (cron format)
+    resolve: path.resolve(import.meta.dirname, 'crons', 'dailyReport.js'),
+    enabled: true
+  });
+  
+  registerJob({
+    name: 'everyFiveMinutes',
+    schedule: '*/5 * * * *', // Every 5 minutes
+    resolve: path.resolve(import.meta.dirname, 'crons', 'checkInventory.js'),
+    enabled: true
+  });
+}
+```
+
+**Schedule Format** (cron expression):
+
+```
+┌───────────── minute (0 - 59)
+│ ┌───────────── hour (0 - 23)
+│ │ ┌───────────── day of month (1 - 31)
+│ │ │ ┌───────────── month (1 - 12)
+│ │ │ │ ┌───────────── day of week (0 - 6) (Sunday = 0)
+│ │ │ │ │
+* * * * *
+```
+
+**Examples**:
+
+- `*/1 * * * *` - Every minute
+- `0 * * * *` - Every hour
+- `0 0 * * *` - Daily at midnight
+- `0 0 * * 0` - Weekly on Sunday
+- `0 0 1 * *` - Monthly on the 1st
+
+### Create Cron Handler
+
+```typescript
+// src/crons/dailyReport.ts
+import { pool } from '@evershop/evershop/lib/postgres/connection';
+import { select } from '@evershop/postgres-query-builder';
+
+export default async function dailyReport() {
+  console.log('Running daily report...');
+  
+  // Query orders from yesterday
+  const orders = await select()
+    .from('order')
+    .where('created_at', '>=', 'DATE_SUB(NOW(), INTERVAL 1 DAY)')
+    .execute(pool);
+  
+  // Generate report
+  const totalRevenue = orders.reduce((sum, order) => sum + order.grand_total, 0);
+  
+  console.log(`Daily Report:`);
+  console.log(`- Orders: ${orders.length}`);
+  console.log(`- Revenue: $${totalRevenue}`);
+  
+  // Send report via email, save to file, etc.
+}
+```
+
+### Manage Jobs Programmatically
+
+```typescript
+import { 
+  registerJob,
+  removeJob,
+  updateJobSchedule,
+  getJob,
+  hasJob
+} from '@evershop/evershop/lib/cronjob';
+
+// Check if job exists
+if (hasJob('myJob')) {
+  // Update schedule
+  updateJobSchedule('myJob', '0 */2 * * *'); // Every 2 hours
+}
+
+// Remove a job
+removeJob('oldJob');
+
+// Get job details
+const job = getJob('myJob');
+if (job) {
+  console.log(`Job ${job.name} runs on schedule: ${job.schedule}`);
+}
+```
+
+## Best Practices
+
+### Event Subscribers
+
+1. **Keep it Fast**: Subscribers should execute quickly. Offload heavy work to queues
+2. **Handle Errors**: Always wrap in try-catch to prevent one subscriber from breaking others
+3. **Be Idempotent**: Handle duplicate events gracefully
+4. **Log Important Actions**: Use the logger for debugging
+
+```typescript
+import { error, debug } from '@evershop/evershop/lib/log/logger';
+
+const handler: EventSubscriber<'order_placed'> = async (data) => {
+  try {
+    debug(`Processing order: ${data.order_id}`);
+    
+    // Your logic here
+    
+    debug(`Order processed: ${data.order_id}`);
+  } catch (e) {
+    error(`Failed to process order ${data.order_id}:`, e);
+    // Don't throw - let other subscribers run
+  }
+};
+
+export default handler;
+```
+
+### Cron Jobs
+
+1. **Use Appropriate Schedules**: Don't run intensive tasks too frequently
+2. **Add Timeout Handling**: Prevent long-running jobs from overlapping
+3. **Log Execution**: Track when jobs run and how long they take
+4. **Handle Failures Gracefully**: Catch errors and alert if needed
+
+```typescript
+export default async function myJob() {
+  const startTime = Date.now();
+  console.log('Job started at:', new Date().toISOString());
+  
+  try {
+    // Your job logic
+    await performTask();
+    
+    const duration = Date.now() - startTime;
+    console.log(`Job completed in ${duration}ms`);
+  } catch (e) {
+    console.error('Job failed:', e);
+    // Send alert
+  }
+}
+```
+
+### Custom Events
+
+1. **Use Clear Names**: Choose descriptive event names (snake_case)
+2. **Document Data Structure**: Define what data your events provide
+3. **Version Your Events**: Include version info if data structure might change
+4. **Type Your Events**: Use TypeScript declarations for type safety
+
+## Next Steps
+
+- Review [Extension Structure](/extensions/extension-structure) for organizing subscribers
+- Check [Creating Extensions](/extensions/creating-extensions) for setup guide
+- Explore the sample extension for real-world examples

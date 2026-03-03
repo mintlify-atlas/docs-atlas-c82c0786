@@ -1,0 +1,288 @@
+---
+title: 'Component System Overview'
+description: 'Understanding EverShop React component architecture and organization'
+---
+
+EverShop's component system is built with React and TypeScript, providing a modular and extensible architecture for building your e-commerce platform.
+
+## Component Organization
+
+Components are organized into three main categories:
+
+### Common Components
+
+Shared components used across both admin and storefront:
+
+- **Core Components**: Area, Image, Link, Meta, Title, Script
+- **Form Components**: Form, InputField, SelectField, CheckboxField, etc.
+- **UI Components**: Button, Badge, Card, Table, Dialog, etc.
+- **Utility Components**: LoadingBar, Notification, RenderIfTrue
+
+```
+packages/evershop/src/components/common/
+├── Area.tsx
+├── Image.tsx
+├── Link.tsx
+├── form/
+│   ├── Form.tsx
+│   ├── InputField.tsx
+│   ├── SelectField.tsx
+│   └── ...
+└── ui/
+    ├── Button.tsx
+    ├── Badge.tsx
+    ├── Card.tsx
+    └── ...
+```
+
+### Admin Components
+
+Components specific to the admin panel:
+
+- **Layout Components**: PageHeading, NavigationItem, SettingMenu
+- **Data Display**: Status, Thumbnail, GridPagination
+- **Data Input**: CategorySelector, ProductSelector, ImageUploader
+- **Grid Components**: Sortable headers, pagination controls
+
+```
+packages/evershop/src/components/admin/
+├── PageHeading.tsx
+├── Status.tsx
+├── ImageUploader.tsx
+├── CategorySelector.tsx
+└── grid/
+    ├── GridPagination.tsx
+    └── ...
+```
+
+### Storefront Components
+
+Components for the customer-facing storefront:
+
+- **Layout Components**: Header, Footer, Pagination
+- **Cart Components**: AddToCart, MiniCart, CartContext
+- **Catalog Components**: ProductList, ProductCard
+- **Checkout Components**: Payment and shipment forms
+- **Customer Components**: Account management, address forms
+
+```
+packages/evershop/src/components/frontStore/
+├── Header.tsx
+├── Footer.tsx
+├── cart/
+│   ├── AddToCart.tsx
+│   ├── MiniCart.tsx
+│   └── CartContext.tsx
+├── catalog/
+│   ├── ProductList.tsx
+│   └── ...
+└── checkout/
+    └── ...
+```
+
+## Component Architecture
+
+### TypeScript Props
+
+All components use TypeScript interfaces for type-safe props:
+
+```tsx
+export interface PageHeadingProps {
+  backUrl?: string;
+  heading: string;
+}
+
+export function PageHeading({ backUrl, heading }: PageHeadingProps) {
+  // Component implementation
+}
+```
+
+### Area-Based Composition
+
+The `Area` component enables dynamic component composition:
+
+```tsx
+import Area from '@components/common/Area.js';
+
+<Area
+  id="pageHeadingRight"
+  noOuter
+  coreComponents={[
+    {
+      component: { default: BackButton },
+      props: { backUrl },
+      sortOrder: 0,
+      id: 'backButton'
+    }
+  ]}
+/>
+```
+
+### React Hook Form Integration
+
+Form components integrate with React Hook Form:
+
+```tsx
+import { Form } from '@components/common/form/Form.js';
+import { InputField } from '@components/common/form/InputField.js';
+
+<Form
+  action="/api/save"
+  method="POST"
+  onSuccess={(response) => console.log('Saved!')}
+>
+  <InputField
+    name="productName"
+    label="Product Name"
+    required
+  />
+</Form>
+```
+
+### Context Providers
+
+Components use React Context for state management:
+
+```tsx
+import { useCartState, useCartDispatch } from '@components/frontStore/cart/CartContext.js';
+
+function MyComponent() {
+  const cartState = useCartState();
+  const cartDispatch = useCartDispatch();
+  
+  return <div>Items: {cartState.data?.items?.length}</div>;
+}
+```
+
+## Styling Approach
+
+### Tailwind CSS
+
+Components use Tailwind CSS utility classes:
+
+```tsx
+<div className="flex items-center justify-between p-4 border rounded-lg">
+  <h1 className="text-2xl font-bold">Hello</h1>
+</div>
+```
+
+### Class Variance Authority (CVA)
+
+UI components use CVA for variant management:
+
+```tsx
+import { cva } from 'class-variance-authority';
+
+const buttonVariants = cva(
+  'rounded-md border font-medium',
+  {
+    variants: {
+      variant: {
+        default: 'bg-primary text-primary-foreground',
+        outline: 'border-border bg-background'
+      },
+      size: {
+        default: 'h-9 px-2.5',
+        sm: 'h-8 px-2'
+      }
+    }
+  }
+);
+```
+
+### Component-Specific Styles
+
+Some components include SCSS files for complex styling:
+
+```
+ImageUploader.tsx
+ImageUploader.scss
+```
+
+## Key Features
+
+### Image Optimization
+
+The `Image` component provides automatic optimization:
+
+```tsx
+import { Image } from '@components/common/Image.js';
+
+<Image
+  src="/products/shoe.jpg"
+  width={800}
+  height={600}
+  alt="Product image"
+  quality={75}
+  loading="lazy"
+  sizes="(max-width: 768px) 100vw, 50vw"
+/>
+```
+
+### Resource Preloading
+
+The `Link` component supports resource hints:
+
+```tsx
+import { Preload } from '@components/common/Link.js';
+
+<Preload
+  rel="preload"
+  as="font"
+  href="/fonts/main.woff2"
+  type="font/woff2"
+  crossOrigin="anonymous"
+/>
+```
+
+### Render Props Pattern
+
+Components like `AddToCart` use render props for flexibility:
+
+```tsx
+<AddToCart product={product} qty={1}>
+  {(state, actions) => (
+    <button
+      onClick={actions.addToCart}
+      disabled={!state.canAddToCart || state.isLoading}
+    >
+      {state.isLoading ? 'Adding...' : 'Add to Cart'}
+    </button>
+  )}
+</AddToCart>
+```
+
+## Component Imports
+
+### Path Aliases
+
+Use path aliases for cleaner imports:
+
+```tsx
+import { Button } from '@components/common/ui/Button.js';
+import { Form } from '@components/common/form/Form.js';
+import { PageHeading } from '@components/admin/PageHeading.js';
+import { AddToCart } from '@components/frontStore/cart/AddToCart.js';
+```
+
+### File Extensions
+
+Always include `.js` extension in imports (TypeScript output):
+
+```tsx
+import { Area } from '@components/common/Area.js';
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Admin Components" icon="layout-dashboard" href="/components/admin-components">
+    Explore admin panel components
+  </Card>
+  <Card title="Storefront Components" icon="shopping-cart" href="/components/storefront-components">
+    Browse storefront components
+  </Card>
+  <Card title="Create Components" icon="code" href="/components/creating-components">
+    Learn to create custom components
+  </Card>
+</CardGroup>

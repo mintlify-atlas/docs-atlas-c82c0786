@@ -1,0 +1,271 @@
+---
+title: Creating Extensions
+description: Step-by-step guide to creating your first EverShop extension
+---
+
+This guide walks you through creating a custom extension for EverShop from scratch.
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- An EverShop project set up and running
+- Node.js and npm installed
+- Basic knowledge of JavaScript/TypeScript
+- Familiarity with React (for UI components)
+
+<Steps>
+
+### Create Extension Directory
+
+Create a new directory for your extension in the `extensions` folder:
+
+```bash
+mkdir -p extensions/my-extension
+cd extensions/my-extension
+```
+
+### Initialize Package
+
+Create a `package.json` file:
+
+```json
+{
+  "name": "my-evershop-extension",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "tsc": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
+```
+
+### Setup TypeScript
+
+Create a `tsconfig.json` file for TypeScript support:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+### Create Directory Structure
+
+Create the required directories:
+
+```bash
+mkdir -p src/api
+mkdir -p src/pages/frontStore
+mkdir -p src/pages/admin
+mkdir -p src/subscribers
+mkdir -p src/graphql/types
+mkdir -p src/crons
+mkdir -p dist
+```
+
+### Configure Extension
+
+Add your extension to `config/default.json`:
+
+```json
+{
+  "system": {
+    "extensions": [
+      {
+        "name": "my-extension",
+        "resolve": "extensions/my-extension",
+        "enabled": true,
+        "priority": 10
+      }
+    ]
+  }
+}
+```
+
+**Configuration Options:**
+
+- `name`: Unique identifier for your extension
+- `resolve`: Path to extension directory (relative to project root)
+- `enabled`: Set to `true` to enable the extension
+- `priority`: Lower numbers load first (default: 10)
+
+### Create Bootstrap File (Optional)
+
+Create `src/bootstrap.ts` to register cron jobs or perform initialization:
+
+```typescript
+import path from 'path';
+import { registerJob } from '@evershop/evershop/lib/cronjob';
+
+export default function () {
+  registerJob({
+    name: 'myCustomJob',
+    schedule: '0 0 * * *', // Runs daily at midnight
+    resolve: path.resolve(import.meta.dirname, 'crons', 'dailyJob.js'),
+    enabled: true
+  });
+}
+```
+
+### Add Event Subscriber
+
+Create `src/subscribers/product_created/logProduct.ts` to react to events:
+
+```typescript
+import { EventSubscriber } from '@evershop/evershop/lib/event/subscriber';
+
+const logProduct: EventSubscriber<'product_created'> = async (data) => {
+  console.log('New product created:', {
+    id: data.product_id,
+    name: data.name,
+    sku: data.sku
+  });
+  
+  // Add your custom logic here
+  // - Send notification
+  // - Update external system
+  // - Trigger workflow
+};
+
+export default logProduct;
+```
+
+### Create Custom Page Component
+
+Create `src/pages/frontStore/all/Banner.tsx` to add a component to all pages:
+
+```tsx
+import React from 'react';
+
+export default function Banner() {
+  return (
+    <div className="bg-blue-600 text-white py-3 px-4">
+      <div className="container mx-auto text-center">
+        <p className="font-medium">
+          Welcome to our store! Free shipping on orders over $50.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export const layout = {
+  areaId: 'body',
+  sortOrder: 0
+};
+```
+
+**Layout Configuration:**
+
+- `areaId`: Where to render the component (`body`, `content`, `header`, etc.)
+- `sortOrder`: Lower numbers render first
+
+### Create API Route
+
+Create `src/api/hello/route.json`:
+
+```json
+{
+  "methods": ["GET"],
+  "path": "/hello",
+  "access": "public"
+}
+```
+
+Create `src/api/hello/handler.ts`:
+
+```typescript
+import { EvershopRequest, EvershopResponse } from '@evershop/evershop';
+
+export default (request: EvershopRequest, response: EvershopResponse) => {
+  response.json({
+    message: 'Hello from my extension!',
+    timestamp: new Date().toISOString()
+  });
+};
+```
+
+### Build Extension
+
+Compile your TypeScript code:
+
+```bash
+npm run tsc
+```
+
+This generates compiled JavaScript in the `dist/` directory.
+
+### Rebuild EverShop
+
+Restart your development server or rebuild:
+
+```bash
+npm run build
+npm run start
+```
+
+<Note>
+In development mode, EverShop loads extensions from the `src/` directory. In production, it uses the compiled `dist/` directory.
+</Note>
+
+### Test Your Extension
+
+1. **Check the banner**: Visit your storefront homepage
+2. **Test the API**: Visit `http://localhost:3000/hello`
+3. **Verify subscriber**: Create a product and check console logs
+4. **Check cron job**: Wait for scheduled time or check logs
+
+</Steps>
+
+## Next Steps
+
+- Learn about [Extension Structure](/extensions/extension-structure) for detailed folder organization
+- Explore [Hooks and Events](/extensions/hooks-and-events) to react to system events
+- Check out the sample extension in your EverShop installation for more examples
+
+## Troubleshooting
+
+### Extension Not Loading
+
+Verify that:
+
+1. Extension is enabled in `config/default.json`
+2. The `resolve` path is correct
+3. You've rebuilt EverShop after configuration changes
+
+### TypeScript Errors
+
+Ensure:
+
+1. Dependencies are installed: `npm install`
+2. TypeScript is installed: `npm install -D typescript`
+3. Your `tsconfig.json` is properly configured
+
+### Component Not Appearing
+
+Check that:
+
+1. The `layout` export is present and correct
+2. The `areaId` exists on the target page
+3. The component file is in the correct directory
+4. The extension is rebuilt and EverShop is restarted

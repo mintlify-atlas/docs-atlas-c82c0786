@@ -1,0 +1,140 @@
+---
+title: 'Themes Overview'
+description: 'Learn about EverShop themes, including the default theme and how to switch between themes'
+---
+
+## What are Themes?
+
+Themes in EverShop allow you to customize the look and feel of your storefront without modifying the core codebase. A theme is a self-contained package that includes:
+
+- Custom React components
+- Page layouts and templates
+- Styling and design elements
+- TypeScript/JavaScript configurations
+
+Themes enable you to create unique shopping experiences while maintaining clean separation from EverShop's core functionality.
+
+## How Themes Work
+
+EverShop uses a **component override system** where themes can:
+
+1. **Add new components** to existing pages
+2. **Override core components** with custom implementations
+3. **Customize styles** using Tailwind CSS
+4. **Organize components** by page or make them global
+
+### Theme Priority
+
+When EverShop loads a page, it follows this component resolution order:
+
+1. **Theme components** (highest priority)
+2. **Module components** (default EverShop components)
+3. **Core components** (base components)
+
+This means your theme components will always take precedence over the default components.
+
+## Default Theme Structure
+
+EverShop does not ship with a built-in theme. Instead, you create themes in the `themes/` directory of your project:
+
+```
+project-root/
+├── themes/
+│   ├── my-theme/
+│   │   ├── src/
+│   │   ├── dist/
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   └── another-theme/
+├── config/
+│   └── default.json
+└── ...
+```
+
+## Theme Configuration
+
+Themes are activated through the `config/default.json` file:
+
+```json
+{
+  "system": {
+    "theme": "my-theme"
+  }
+}
+```
+
+The `system.theme` property specifies which theme directory to use.
+
+## Switching Themes
+
+EverShop provides a CLI command to easily switch between themes:
+
+```bash
+npm run theme:active
+```
+
+This interactive command will:
+
+1. Display all available themes in your `themes/` directory
+2. Let you select which theme to activate
+3. Update the `config/default.json` file automatically
+4. Optionally run the build process to apply changes
+
+### Manual Theme Switching
+
+You can also manually switch themes by editing `config/default.json`:
+
+```json
+{
+  "system": {
+    "theme": "new-theme-name"
+  }
+}
+```
+
+After changing the theme configuration, run:
+
+```bash
+npm run build
+```
+
+## Development vs Production Mode
+
+Themes behave differently depending on the environment:
+
+### Development Mode
+
+- EverShop loads components from the `themes/[theme-name]/src/` directory
+- Changes are reflected in real-time during development
+- TypeScript files are compiled on-the-fly
+
+### Production Mode
+
+- EverShop loads pre-compiled components from `themes/[theme-name]/dist/`
+- You must run `npm run build` to compile theme changes
+- Better performance with optimized bundles
+
+## Theme Isolation
+
+Each theme is isolated with its own:
+
+- `package.json` for dependencies
+- `tsconfig.json` for TypeScript configuration
+- Component directory structure
+- Build output directory
+
+This isolation ensures themes don't conflict with each other and makes it easy to switch between different designs.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create a Theme" icon="wand-magic-sparkles" href="/themes/creating-themes">
+    Learn how to create your first custom theme
+  </Card>
+  <Card title="Theme Structure" icon="folder-tree" href="/themes/theme-structure">
+    Understand the theme directory structure and required files
+  </Card>
+  <Card title="Customization" icon="palette" href="/themes/customization">
+    Customize styling and override components
+  </Card>
+</CardGroup>

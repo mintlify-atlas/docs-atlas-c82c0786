@@ -1,122 +1,145 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "EverShop",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#16a34a",
+    "light": "#16a34a",
+    "dark": "#16a34a"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/evershopcommerce/evershop"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/evershopcommerce/evershop",
+      "discord": "https://discord.gg/GSzt7dt7RM",
+      "twitter": "https://twitter.com/evershopjs"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "core-concepts/architecture",
+              "core-concepts/module-system",
+              "core-concepts/routing",
+              "core-concepts/graphql",
+              "core-concepts/middleware",
+              "core-concepts/events"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Extensions",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "extensions/overview",
+              "extensions/creating-extensions",
+              "extensions/extension-structure",
+              "extensions/hooks-and-events"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Themes",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "themes/overview",
+              "themes/creating-themes",
+              "themes/theme-structure",
+              "themes/customization"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/overview",
+              "components/admin-components",
+              "components/storefront-components",
+              "components/creating-components"
+            ]
+          },
+          {
+            "group": "Modules",
+            "pages": [
+              "modules/catalog",
+              "modules/checkout",
+              "modules/customer",
+              "modules/orders",
+              "modules/cms",
+              "modules/promotions",
+              "modules/payment"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/configuration",
+              "deployment/environment-variables",
+              "deployment/docker",
+              "deployment/production"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "CLI Commands",
             "pages": [
-              "api-reference/introduction"
+              "api/cli/overview",
+              "api/cli/dev",
+              "api/cli/build",
+              "api/cli/start",
+              "api/cli/install",
+              "api/cli/user",
+              "api/cli/theme"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Core APIs",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/core/event-emitter",
+              "api/core/database",
+              "api/core/router",
+              "api/core/widgets",
+              "api/core/logging"
+            ]
+          },
+          {
+            "group": "GraphQL",
+            "pages": [
+              "api/graphql/schema",
+              "api/graphql/queries",
+              "api/graphql/mutations",
+              "api/graphql/types"
+            ]
+          },
+          {
+            "group": "Module Services",
+            "pages": [
+              "api/services/catalog",
+              "api/services/checkout",
+              "api/services/customer",
+              "api/services/orders",
+              "api/services/cms"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

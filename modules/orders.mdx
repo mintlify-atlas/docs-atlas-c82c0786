@@ -1,0 +1,444 @@
+---
+title: Orders Module (OMS)
+description: Order management system for processing and tracking orders
+---
+
+The OMS (Order Management System) module handles order processing, fulfillment, and tracking in EverShop.
+
+## Overview
+
+The OMS module provides:
+
+- **Order Management** - Create, view, and manage orders
+- **Order Status Tracking** - Track order, payment, and shipment status
+- **Shipment Management** - Create and track shipments
+- **Order Activities** - Activity log for order changes
+- **Invoicing** - Generate and manage invoices
+- **Order Notes** - Internal notes and customer comments
+
+## Module Structure
+
+```
+oms/
+├── api/                    # Order API endpoints
+├── graphql/                # GraphQL types and resolvers
+│   ├── types/
+│   │   ├── Order/         # Order types
+│   │   ├── OrderItem/     # Order item types
+│   │   └── Shipment/      # Shipment types
+├── migration/             # Database migrations
+├── pages/                 # Order management pages
+├── services/              # Order services
+└── bootstrap.js           # Module initialization
+```
+
+## GraphQL Types
+
+### Order Type
+
+```graphql
+type Order {
+  orderId: Int!
+  uuid: String!
+  orderNumber: String!
+  cartId: Int!
+  orderDate: String!
+  currency: String!
+  customerId: ID
+  customerEmail: String
+  customerFullName: String
+  status: Status!
+  paymentStatus: PaymentStatus!
+  shipmentStatus: ShipmentStatus!
+  items: [OrderItem]!
+  shippingAddress: OrderAddress
+  billingAddress: OrderAddress
+  shippingMethod: String
+  shippingMethodName: String
+  shippingNote: String
+  paymentMethod: String
+  paymentMethodName: String
+  discountAmount: Float
+  coupon: String
+  taxAmount: Float
+  shippingFeeExclTax: Float
+  shippingFeeInclTax: Float
+  subTotal: Float
+  subTotalInclTax: Float
+  totalQty: Int!
+  totalWeight: Float
+  grandTotal: Float!
+  activities: [Activity]
+  shipments: [Shipment]
+}
+```
+
+### Order Status Types
+
+```graphql
+type Status {
+  code: String!
+  badge: String!
+  progress: String!
+  name: String!
+}
+
+type PaymentStatus {
+  code: String!
+  badge: String!
+  progress: String!
+  name: String!
+}
+
+type ShipmentStatus {
+  code: String!
+  badge: String!
+  progress: String!
+  name: String!
+}
+```
+
+## Order Lifecycle
+
+### 1. Order Creation
+
+Orders are created when:
+
+- Customer completes checkout
+- Admin creates order manually
+- Order is imported from external system
+
+```typescript
+// Order is created from cart during checkout
+const order = await cart.placeOrder();
+```
+
+### 2. Order Statuses
+
+Orders progress through these statuses:
+
+<Steps>
+  <Step title="Pending">
+    Order placed, awaiting payment confirmation
+  </Step>
+  <Step title="Processing">
+    Payment confirmed, order being prepared
+  </Step>
+  <Step title="Shipped">
+    Order shipped to customer
+  </Step>
+  <Step title="Delivered">
+    Order delivered to customer
+  </Step>
+  <Step title="Complete">
+    Order finalized and closed
+  </Step>
+</Steps>
+
+Other statuses:
+
+- **Cancelled** - Order cancelled before shipment
+- **On Hold** - Order temporarily on hold
+- **Refunded** - Payment refunded to customer
+
+### 3. Payment Status
+
+Payment tracking:
+
+- **Pending** - Payment not yet received
+- **Paid** - Payment confirmed
+- **Partially Paid** - Partial payment received
+- **Refunded** - Payment refunded
+- **Failed** - Payment failed
+
+### 4. Shipment Status
+
+Shipment tracking:
+
+- **Unshipped** - Not yet shipped
+- **Partially Shipped** - Some items shipped
+- **Shipped** - All items shipped
+- **Delivered** - Package delivered
+
+## Order Items
+
+### OrderItem Type
+
+```graphql
+type OrderItem {
+  orderItemId: Int!
+  uuid: String!
+  orderId: Int!
+  productId: Int!
+  productSku: String!
+  productName: String!
+  thumbnail: String
+  productWeight: Float
+  qty: Int!
+  price: Float!
+  finalPrice: Float!
+  finalPriceInclTax: Float!
+  taxPercent: Float
+  taxAmount: Float
+  discountAmount: Float
+  subTotal: Float!
+  total: Float!
+  variantGroupId: ID
+  variantOptions: String
+  productCustomOptions: String
+}
+```
+
+Order items store:
+
+- Product information (snapshot at time of order)
+- Pricing and discounts
+- Tax calculations
+- Variant and custom options
+
+## Shipment Management
+
+### Creating Shipments
+
+Shipments are created for orders:
+
+```javascript
+// POST /api/orders/:id/shipments
+await fetch(`/api/orders/${orderId}/shipments`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    items: [
+      { orderItemId: 1, qty: 2 },
+      { orderItemId: 2, qty: 1 }
+    ],
+    trackingNumber: 'TRACK123456',
+    carrier: 'UPS',
+    note: 'Shipment created'
+  })
+});
+```
+
+### Shipment Type
+
+```graphql
+type Shipment {
+  shipmentId: Int!
+  uuid: String!
+  shipmentNumber: String!
+  orderId: Int!
+  carrier: String
+  trackingNumber: String
+  shippedAt: String
+  deliveredAt: String
+  status: String!
+}
+```
+
+### Partial Shipments
+
+Orders can be shipped in multiple shipments:
+
+- Ship available items first
+- Track each shipment separately
+- Update order status automatically
+
+## Order Activities
+
+Activity log tracks all order changes:
+
+```graphql
+type Activity {
+  activityId: Int!
+  orderId: Int!
+  comment: String!
+  customerNotified: Boolean!
+  createdAt: String!
+  username: String
+}
+```
+
+Activities are logged for:
+
+- Status changes
+- Payment updates
+- Shipment creation
+- Order notes
+- Cancellations and refunds
+
+## Order Services
+
+The OMS module exports these services:
+
+```typescript
+import { 
+  updatePaymentStatus,
+  updateShipmentStatus,
+  createShipment,
+  cancelOrder
+} from '@evershop/evershop/oms/services';
+
+// Update payment status
+await updatePaymentStatus(orderId, 'paid');
+
+// Update shipment status
+await updateShipmentStatus(orderId, 'shipped');
+
+// Create shipment
+const shipment = await createShipment(orderId, {
+  items: [{ orderItemId: 1, qty: 2 }],
+  trackingNumber: 'TRACK123',
+  carrier: 'FedEx'
+});
+
+// Cancel order
+await cancelOrder(orderId, 'Customer requested cancellation');
+```
+
+## Database Schema
+
+The OMS module defines:
+
+- `order` - Order header data
+- `order_item` - Order line items
+- `order_address` - Shipping and billing addresses
+- `order_activity` - Activity log
+- `shipment` - Shipment records
+- `shipment_item` - Shipment line items
+
+## Order Queries
+
+### Get Order
+
+```graphql
+query {
+  order(id: "abc123") {
+    orderNumber
+    orderDate
+    status {
+      name
+      badge
+    }
+    grandTotal
+    items {
+      productName
+      qty
+      total
+    }
+    shippingAddress {
+      fullName
+      address1
+      city
+    }
+    shipments {
+      trackingNumber
+      carrier
+      shippedAt
+    }
+  }
+}
+```
+
+### Get Orders (Admin)
+
+```graphql
+query {
+  orders(filters: [{ key: "status", operation: eq, value: "processing" }]) {
+    items {
+      orderId
+      orderNumber
+      customerFullName
+      grandTotal
+      status {
+        name
+      }
+    }
+    total
+    currentPage
+  }
+}
+```
+
+## Admin Order Management
+
+Administrators can:
+
+- View all orders with filtering
+- Update order status
+- Create shipments
+- Add order notes
+- Issue refunds
+- Cancel orders
+- Print invoices and packing slips
+- Email customers
+
+## Order Notifications
+
+Customers receive email notifications for:
+
+- Order confirmation
+- Payment received
+- Order shipped
+- Delivery confirmation
+- Cancellation or refund
+
+## Inventory Updates
+
+The OMS module updates inventory:
+
+- **On order placement** - Decrements stock
+- **On cancellation** - Returns stock
+- **On refund** - Optional stock return
+
+## Best Practices
+
+<Note>
+  **Order Numbers**: Order numbers are automatically generated and guaranteed to be unique. They can be customized using the order number prefix in settings.
+</Note>
+
+<Warning>
+  **Order Modification**: Once an order is placed, avoid modifying order items. Instead, issue refunds and create new orders if changes are needed.
+</Warning>
+
+<Tip>
+  **Activity Logging**: Always add activity log entries when making manual changes to orders. This creates an audit trail.
+</Tip>
+
+## Order Reports
+
+Generate reports for:
+
+- Sales by date range
+- Top selling products
+- Revenue by payment method
+- Order status breakdown
+- Customer order history
+
+## API Endpoints
+
+Key OMS API endpoints:
+
+- `GET /api/orders` - List orders (admin)
+- `GET /api/orders/:id` - Get order details
+- `PATCH /api/orders/:id` - Update order
+- `POST /api/orders/:id/cancel` - Cancel order
+- `POST /api/orders/:id/shipments` - Create shipment
+- `PATCH /api/orders/:id/shipments/:shipmentId` - Update shipment
+- `POST /api/orders/:id/activities` - Add activity log
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="OMS Services API" icon="code" href="/api/services/orders">
+    Learn about the OMS services API
+  </Card>
+  <Card title="Checkout Module" icon="shopping-cart" href="/modules/checkout">
+    How orders are created from carts
+  </Card>
+  <Card title="Customer Module" icon="user" href="/modules/customer">
+    Customer order history
+  </Card>
+  <Card title="GraphQL Queries" icon="diagram-project" href="/api/graphql/queries">
+    Order GraphQL queries
+  </Card>
+</CardGroup>

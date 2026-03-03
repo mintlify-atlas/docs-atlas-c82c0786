@@ -1,0 +1,267 @@
+---
+title: evershop dev
+description: Start the EverShop development server with hot reload and file watching
+---
+
+## Overview
+
+The `evershop dev` command starts a development server with automatic reloading when source files change. It's designed for local development with TypeScript compilation, webpack hot module replacement, and file watching.
+
+## Usage
+
+```bash
+evershop dev
+```
+
+## What It Does
+
+### 1. TypeScript Compilation
+
+The dev command automatically compiles TypeScript files in your project:
+
+- Compiles all `.ts` and `.tsx` files
+- Watches for changes and recompiles
+- Uses SWC for fast compilation
+
+### 2. File Watching
+
+Monitors your source files for changes:
+
+- Watches TypeScript/JavaScript files
+- Watches React components
+- Watches GraphQL schemas
+- Watches configuration files
+
+### 3. Hot Module Replacement
+
+Webpack HMR enables:
+
+- Live reload of React components
+- CSS updates without page refresh
+- Preserves application state during updates
+
+### 4. Development Server
+
+Starts an Express server with:
+
+- Development middleware
+- Source maps for debugging
+- Detailed error messages
+- Hot reload endpoints
+
+## Environment
+
+When running in development mode:
+
+- `NODE_ENV` is set to `development`
+- `ALLOW_CONFIG_MUTATIONS` is enabled
+- Detailed logging is enabled
+- Source maps are generated
+
+## Process Architecture
+
+The dev command uses a multi-process architecture:
+
+1. **Main Process**: Spawns and manages the dev server
+2. **Child Process**: Runs the actual application
+3. **Auto-restart**: Child process restarts when critical files change
+
+```javascript
+// From src/bin/dev/index.ts
+const appProcess = spawn('node', args, {
+  stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+  env: {
+    ...process.env,
+    ALLOW_CONFIG_MUTATIONS: true
+  }
+});
+```
+
+## Automatic Restart
+
+The server automatically restarts when:
+
+- Bootstrap scripts change
+- Core configuration files change
+- Module structure changes
+- GraphQL schemas change
+
+## Port Configuration
+
+The development server port can be configured:
+
+```json
+// config/default.json
+{
+  "system": {
+    "port": 3000
+  }
+}
+```
+
+Default port is `3000`. The server will log the URL on startup:
+
+```
+EverShop is running on http://localhost:3000
+```
+
+## File Structure
+
+Key files monitored during development:
+
+```
+project/
+├── src/
+│   ├── modules/
+│   │   └── */
+│   │       ├── bootstrap.js     # Module initialization
+│   │       ├── graphql/          # GraphQL schemas
+│   │       └── pages/            # Page components
+│   └── components/               # React components
+├── themes/
+│   └── */                        # Theme files
+├── config/
+│   └── default.json              # Configuration
+└── .env                          # Environment variables
+```
+
+## Development Workflow
+
+Typical development workflow:
+
+```bash
+# 1. Start development server
+evershop dev
+
+# 2. Make changes to your code
+# Files are automatically compiled and reloaded
+
+# 3. View changes in browser
+# http://localhost:3000
+
+# 4. Check terminal for logs and errors
+```
+
+## Debugging
+
+### Enable Debug Logs
+
+Set the DEBUG environment variable:
+
+```bash
+DEBUG=evershop:* evershop dev
+```
+
+### Source Maps
+
+Source maps are automatically generated for:
+
+- TypeScript files
+- JavaScript bundles
+- CSS files
+
+Use browser DevTools to debug original source code.
+
+## Performance
+
+### First Start
+
+- Compiles all TypeScript files
+- Builds initial webpack bundles
+- Initializes database connections
+- Loads all modules and extensions
+
+First start typically takes 30-60 seconds.
+
+### Subsequent Changes
+
+- Hot reload: 1-2 seconds
+- TypeScript compilation: 2-5 seconds
+- Full restart: 10-15 seconds
+
+## Troubleshooting
+
+### Port Already in Use
+
+```
+Error: Port 3000 is already in use
+```
+
+Change the port in `config/default.json` or kill the process:
+
+```bash
+# Find and kill process on port 3000
+lsof -ti:3000 | xargs kill -9
+```
+
+### Module Not Found Errors
+
+```
+Error: Cannot find module
+```
+
+Clear node_modules and reinstall:
+
+```bash
+rm -rf node_modules
+npm install
+```
+
+### TypeScript Compilation Errors
+
+```
+Error: Type 'X' is not assignable to type 'Y'
+```
+
+Fix TypeScript errors in your code. The server won't start until compilation succeeds.
+
+### Database Connection Errors
+
+```
+Error: Connection terminated
+```
+
+Verify your `.env` file has correct database credentials:
+
+```bash
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=evershop
+DB_USER=postgres
+DB_PASSWORD=your_password
+```
+
+## Differences from Production
+
+| Feature | Development | Production |
+|---------|-------------|------------|
+| Hot Reload | Yes | No |
+| Source Maps | Yes | No |
+| Minification | No | Yes |
+| Caching | Minimal | Aggressive |
+| Logging | Verbose | Errors only |
+| Performance | Slower | Optimized |
+
+## Related Commands
+
+- `evershop build` - Build for production
+- `evershop start` - Start production server
+- `evershop install` - Initial setup
+
+## Example Output
+
+```
+$ evershop dev
+
+Compiling TypeScript files...
+✓ TypeScript compilation complete
+
+Starting webpack...
+✓ Client bundle compiled
+✓ Server bundle compiled
+
+Starting development server...
+✓ Server started on http://localhost:3000
+
+Watching for file changes...
+```

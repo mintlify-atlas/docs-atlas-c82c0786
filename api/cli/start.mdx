@@ -1,0 +1,486 @@
+---
+title: evershop start
+description: Start EverShop production server after building
+---
+
+## Overview
+
+The `evershop start` command starts your EverShop application in production mode. It serves the optimized bundles created by `evershop build`.
+
+## Usage
+
+```bash
+evershop start
+```
+
+## Prerequisites
+
+Before running `evershop start`, you must:
+
+1. Complete the installation: `evershop install`
+2. Build the application: `evershop build`
+3. Configure environment variables in `.env`
+
+## What It Does
+
+The start command:
+
+1. Loads production environment configuration
+2. Initializes database connections
+3. Loads modules and extensions
+4. Runs bootstrap scripts
+5. Starts the Express HTTP server
+6. Serves pre-built static assets
+7. Handles API and GraphQL requests
+
+## Implementation
+
+From `src/bin/start/index.ts`:
+
+```typescript
+import './initEnvStart.js';
+import { start } from '../lib/startUp.js';
+
+start({
+  command: 'start',
+  env: 'production',
+  process: 'main'
+});
+```
+
+## Production Environment
+
+### Environment Variables
+
+Required environment variables:
+
+```bash
+# .env file
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=evershop
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_SSLMODE=require
+```
+
+### Configuration
+
+Production configuration in `config/production.json`:
+
+```json
+{
+  "system": {
+    "port": 3000,
+    "logLevel": "error"
+  },
+  "database": {
+    "pool": {
+      "max": 20,
+      "min": 5
+    }
+  }
+}
+```
+
+## Server Configuration
+
+### Port
+
+Default port is `3000`. Configure in `config/production.json`:
+
+```json
+{
+  "system": {
+    "port": 8080
+  }
+}
+```
+
+Or use environment variable:
+
+```bash
+PORT=8080 evershop start
+```
+
+### Host Binding
+
+By default, the server binds to all interfaces (`0.0.0.0`). Configure specific host:
+
+```json
+{
+  "system": {
+    "host": "127.0.0.1"
+  }
+}
+```
+
+## Process Management
+
+### Using PM2
+
+Recommended for production:
+
+```bash
+# Install PM2
+npm install -g pm2
+
+# Start with PM2
+pm2 start "evershop start" --name evershop
+
+# View logs
+pm2 logs evershop
+
+# Restart
+pm2 restart evershop
+
+# Stop
+pm2 stop evershop
+```
+
+### PM2 Ecosystem File
+
+```javascript
+// ecosystem.config.js
+module.exports = {
+  apps: [{
+    name: 'evershop',
+    script: 'evershop',
+    args: 'start',
+    instances: 2,
+    exec_mode: 'cluster',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3000
+    }
+  }]
+};
+```
+
+Start with ecosystem:
+
+```bash
+pm2 start ecosystem.config.js
+```
+
+### Using systemd
+
+Create a systemd service:
+
+```ini
+# /etc/systemd/system/evershop.service
+[Unit]
+Description=EverShop E-commerce Platform
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/evershop
+ExecStart=/usr/bin/node /usr/local/bin/evershop start
+Restart=on-failure
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable evershop
+sudo systemctl start evershop
+sudo systemctl status evershop
+```
+
+### Using Docker
+
+```dockerfile
+# Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm install --production
+
+# Copy application
+COPY . .
+
+# Build
+RUN npm run build
+
+# Start
+CMD ["npm", "run", "start"]
+```
+
+Build and run:
+
+```bash
+docker build -t evershop .
+docker run -p 3000:3000 --env-file .env evershop
+```
+
+## Performance Optimization
+
+### Database Connection Pooling
+
+Configure connection pool size:
+
+```json
+{
+  "database": {
+    "pool": {
+      "min": 5,
+      "max": 20,
+      "idleTimeoutMillis": 30000
+    }
+  }
+}
+```
+
+### Caching
+
+Enable Redis caching:
+
+```json
+{
+  "cache": {
+    "enabled": true,
+    "type": "redis",
+    "redis": {
+      "host": "localhost",
+      "port": 6379
+    }
+  }
+}
+```
+
+### Static Asset Serving
+
+Use Nginx as reverse proxy:
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    location /assets/ {
+        alias /var/www/evershop/public/assets/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+## Monitoring
+
+### Health Check Endpoint
+
+Check if server is running:
+
+```bash
+curl http://localhost:3000/health
+```
+
+### Logging
+
+Production logs are written to:
+
+- `logs/error.log` - Error logs
+- `logs/combined.log` - All logs
+
+Configure log level:
+
+```json
+{
+  "system": {
+    "logLevel": "error"
+  }
+}
+```
+
+### Metrics
+
+Monitor with PM2:
+
+```bash
+pm2 monit
+```
+
+Or use monitoring services:
+
+- New Relic
+- DataDog
+- Prometheus + Grafana
+
+## Graceful Shutdown
+
+The server handles shutdown signals:
+
+```typescript
+process.on('SIGTERM', async () => {
+  // Close database connections
+  // Finish pending requests
+  // Exit cleanly
+  process.exit(0);
+});
+```
+
+Graceful shutdown:
+
+```bash
+kill -SIGTERM <pid>
+```
+
+## Scaling
+
+### Horizontal Scaling
+
+Run multiple instances:
+
+```bash
+# Using PM2 cluster mode
+pm2 start evershop start -i 4
+```
+
+### Load Balancing
+
+Use Nginx for load balancing:
+
+```nginx
+upstream evershop {
+    server localhost:3000;
+    server localhost:3001;
+    server localhost:3002;
+    server localhost:3003;
+}
+
+server {
+    listen 80;
+    location / {
+        proxy_pass http://evershop;
+    }
+}
+```
+
+## Troubleshooting
+
+### Server Won't Start
+
+```
+Error: Cannot find module '.evershop/build'
+```
+
+**Solution**: Run `evershop build` first.
+
+### Port Already in Use
+
+```
+Error: Port 3000 is already in use
+```
+
+**Solution**: Change port or stop existing process:
+
+```bash
+lsof -ti:3000 | xargs kill -9
+```
+
+### Database Connection Failed
+
+```
+Error: Connection terminated
+```
+
+**Solution**: Check database credentials and connectivity:
+
+```bash
+psql -h localhost -U postgres -d evershop
+```
+
+### Out of Memory
+
+```
+JavaScript heap out of memory
+```
+
+**Solution**: Increase Node.js memory:
+
+```bash
+NODE_OPTIONS="--max-old-space-size=4096" evershop start
+```
+
+## Security
+
+### Environment Variables
+
+Never commit `.env` to version control:
+
+```bash
+# .gitignore
+.env
+.env.production
+```
+
+### HTTPS
+
+Use reverse proxy (Nginx/Apache) for SSL:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    location / {
+        proxy_pass http://localhost:3000;
+    }
+}
+```
+
+### Security Headers
+
+Configure in reverse proxy:
+
+```nginx
+add_header X-Frame-Options "SAMEORIGIN";
+add_header X-Content-Type-Options "nosniff";
+add_header X-XSS-Protection "1; mode=block";
+```
+
+## Example Startup Output
+
+```
+$ evershop start
+
+Loading production configuration...
+✓ Configuration loaded
+
+Connecting to database...
+✓ Database connected
+
+Loading modules...
+✓ 8 core modules loaded
+✓ 2 extensions loaded
+
+Running bootstrap scripts...
+✓ Bootstrap completed
+
+Starting server...
+✓ Server listening on http://localhost:3000
+
+EverShop is ready for production!
+```
+
+## Related Commands
+
+- `evershop build` - Build for production
+- `evershop dev` - Development server
+- `evershop install` - Initial setup

@@ -1,0 +1,618 @@
+---
+title: Middleware System
+description: Deep dive into EverShop's middleware delegation, execution order, and composition patterns
+---
+
+## Overview
+
+EverShop's middleware system is a **delegated, dependency-based** architecture that allows fine-grained control over request processing. Middleware functions are automatically discovered, sorted by dependencies, and executed in a chain.
+
+## Middleware Basics
+
+### Middleware Function Signature
+
+Middleware functions come in two types:
+
+#### Normal Middleware
+
+```javascript
+export default function middleware(request, response, next) {
+  // Process request
+  // Modify request or response
+  next(); // Call next middleware
+}
+```
+
+#### Error Middleware
+
+```javascript
+export default function errorHandler(error, request, response, next) {
+  // Handle error
+  console.error(error);
+  response.status(500).json({ error: error.message });
+}
+```
+
+<Info>
+Middleware with 4 parameters is automatically recognized as an error handler and only called when an error occurs.
+</Info>
+
+## File-Based Middleware Discovery
+
+Middleware files are automatically discovered from route directories:
+
+```javascript packages/evershop/src/lib/middleware/scanForMiddlewareFunctions.js
+export function scanForMiddlewareFunctions(path) {
+  let middlewares = [];
+  
+  readdirSync(resolve(path), { withFileTypes: true })
+    .filter(
+      (dirent) =>
+        dirent.isFile() &&
+        /\.js$/.test(dirent.name) &&
+        !/^[A-Z]/.test(dirent.name[0]) // Skip React components
+    )
+    .forEach((dirent) => {
+      const middlewareFunc = resolve(path, dirent.name);
+      middlewares = middlewares.concat(parseFromFile(middlewareFunc));
+    });
+  
+  return middlewares;
+}
+```
+
+<Note>
+Files starting with uppercase letters are skipped (these are React components). Only lowercase `.js` files are treated as middleware.
+</Note>
+
+## Dependency-Based Ordering
+
+### Naming Convention
+
+Middleware execution order is controlled through **file naming**:
+
+| Pattern | Example | Meaning |
+|---------|---------|----------|
+| `name.js` | `validate.js` | Basic middleware |
+| `[after]name.js` | `[auth]validate.js` | Runs **after** auth |
+| `name[before].js` | `auth[context].js` | Runs **before** context |
+| `[after]name[before].js` | `[auth]validate[handler].js` | Runs **after** auth, **before** handler |
+
+### Multiple Dependencies
+
+Use commas to specify multiple dependencies:
+
+```
+[auth,validate,sanitize]handler.js    # Runs after auth, validate, AND sanitize
+auth[context,session].js              # Runs before context AND session
+```
+
+### Parsing Logic
+
+```javascript packages/evershop/src/lib/middleware/parseFromFile.js
+export function parseFromFile(path) {
+  const name = basename(path);
+  let m = {};
+  let id;
+  
+  // Pattern: [after1,after2]id.js
+  if (/^(\[)[a-zA-Z1-9.,]+(\])[a-zA-Z1-9]+.js$/.test(name)) {
+    const split = name.split(/[\[\]]+/);
+    id = split[2].substr(0, split[2].indexOf('.')).trim();
+    m = {
+      id,
+      middleware: buildMiddlewareFunction(id, path),
+      after: split[1].split(',').filter((a) => a.trim() !== ''),
+      path
+    };
+  }
+  // Pattern: id[before1,before2].js
+  else if (/^[a-zA-Z1-9]+(\[)[a-zA-Z1-9,]+(\]).js$/.test(name)) {
+    const split = name.split(/[\[\]]+/);
+    id = split[0].trim();
+    m = {
+      id,
+      middleware: buildMiddlewareFunction(id, path),
+      before: split[1].split(',').filter((a) => a.trim() !== ''),
+      path
+    };
+  }
+  // Pattern: [after]id[before].js
+  else if (
+    /^(\[)[a-zA-Z1-9,]+(\])[a-zA-Z1-9]+(\[)[a-zA-Z1-9,]+(\]).js$/.test(name)
+  ) {
+    const split = name.split(/[\[\]]+/);
+    id = split[2].trim();
+    m = {
+      id,
+      middleware: buildMiddlewareFunction(id, path),
+      after: split[1].split(',').filter((a) => a.trim() !== ''),
+      before: split[3].split(',').filter((a) => a.trim() !== ''),
+      path
+    };
+  }
+  // Simple: id.js
+  else {
+    const split = name.split('.');
+    id = split[0].trim();
+    m = {
+      id,
+      middleware: buildMiddlewareFunction(id, path),
+      path
+    };
+  }
+  
+  // Auto-add default dependencies for API routes
+  const route = getRouteFromPath(path);
+  if (route.region === 'api') {
+    if (m.id !== 'context' && m.id !== 'apiErrorHandler') {
+      m.before = !m.before ? ['apiResponse'] : m.before;
+      m.after = !m.after ? ['escapeHtml', 'auth'] : m.after;
+    }
+  } else if (m.id !== 'context' && m.id !== 'errorHandler') {
+    m.before = !m.before ? ['notFound'] : m.before;
+    m.after = !m.after ? ['auth'] : m.after;
+  }
+  
+  return [{ ...m, ...route }];
+}
+```
+
+<Warning>
+API routes automatically get `after: ['escapeHtml', 'auth']` and `before: ['apiResponse']` unless explicitly set or named `context` or `apiErrorHandler`.
+</Warning>
+
+## Topological Sorting
+
+Middlewares are sorted using **topological sorting** based on dependencies:
+
+```javascript packages/evershop/src/lib/middleware/sort.js
+import Topo from '@hapi/topo';
+
+export function sortMiddlewares(middlewares = []) {
+  // Filter out middlewares with unresolved dependencies
+  const middlewareFunctions = middlewares.filter((m) => {
+    if ((m.before === m.after) === null) return true;
+    
+    const dependencies = (m.before || []).concat(m.after || []);
+    let flag = true;
+    
+    dependencies.forEach((d) => {
+      if (
+        flag === false ||
+        middlewares.findIndex(
+          (e) =>
+            e.id === d &&
+            (e.scope === 'app' ||
+              e.scope === 'admin' ||
+              e.scope === 'frontStore' ||
+              e.routeId === null ||
+              e.routeId === m.scope ||
+              e.routeId === m.routeId)
+        ) === -1
+      ) {
+        flag = false;
+      }
+    });
+    
+    return flag;
+  });
+  
+  // Sort using topological sorting
+  const sorter = new Topo.Sorter();
+  middlewareFunctions.forEach((m) => {
+    sorter.add(m.id, {
+      before: m.before,
+      after: m.after,
+      group: m.id
+    });
+  });
+  
+  return sorter.nodes.map((n) => {
+    const index = middlewareFunctions.findIndex((m) => m.id === n);
+    const m = middlewareFunctions[index];
+    middlewareFunctions.splice(index, 1);
+    return m;
+  });
+}
+```
+
+## Middleware Execution
+
+### The Handler Class
+
+```javascript packages/evershop/src/lib/middleware/Handler.js
+export class Handler {
+  static middleware() {
+    return (request, response, next) => {
+      // Merge custom params
+      request.params = {
+        ...((request.locals?.customParams) || {}),
+        ...request.params
+      };
+      
+      const { currentRoute } = request;
+      let middlewares;
+      
+      if (!currentRoute) {
+        middlewares = this.getAppLevelMiddlewares('pages');
+      } else {
+        middlewares = this.getMiddlewareByRoute(currentRoute);
+      }
+      
+      // Separate normal and error handlers
+      const goodHandlers = middlewares.filter(
+        (m) => m.middleware.length === 3
+      );
+      const errorHandlers = middlewares.filter(
+        (m) => m.middleware.length === 4
+      );
+      
+      let currentGood = 0;
+      let currentError = -1;
+      
+      const eNext = function eNext() {
+        // All normal middlewares done
+        if (arguments.length === 0 && currentGood === goodHandlers.length - 1) {
+          next();
+        }
+        // All error handlers done
+        else if (currentError === errorHandlers.length - 1) {
+          next(arguments[0]);
+        }
+        // Error occurred, call error handler
+        else if (arguments.length > 0) {
+          if (!isErrorHandlerTriggered(response)) {
+            currentError += 1;
+            const middlewareFunc = errorHandlers[currentError].middleware;
+            middlewareFunc(arguments[0], request, response, eNext);
+          }
+        }
+        // Call next normal middleware
+        else {
+          currentGood += 1;
+          const middlewareFunc = goodHandlers[currentGood].middleware;
+          middlewareFunc(request, response, eNext);
+        }
+      };
+      
+      // Start the chain
+      const { middleware } = goodHandlers[0];
+      middleware(request, response, eNext);
+    };
+  }
+}
+
+Handler.middlewares = [];
+Handler.sortedMiddlewarePerRoute = {};
+```
+
+### Execution Flow
+
+1. **Request arrives**
+2. **Route matching** - Find the matching route
+3. **Middleware selection** - Get middlewares for the route
+4. **Separation** - Split into normal and error handlers
+5. **Execution** - Execute normal handlers sequentially
+6. **Error handling** - If error occurs, execute error handlers
+7. **Response** - Send response to client
+
+## Middleware Scopes
+
+### Route-Specific Middleware
+
+Placed directly in the route directory:
+
+```
+api/createProduct/
+├── route.json
+├── [auth]validate.js      # Only for this route
+└── createProduct.js
+```
+
+### Area-Level Middleware
+
+Applies to all routes in an area:
+
+```
+pages/admin/all/
+└── checkPermission.js     # All admin routes
+
+pages/frontStore/all/
+└── loadCart.js            # All frontend routes
+```
+
+### Global Middleware
+
+Applies to all routes:
+
+```
+pages/global/
+├── context.js             # Always first
+├── auth.js                # Authentication
+└── errorHandler.js        # Error handling
+```
+
+### Middleware Selection Logic
+
+```javascript packages/evershop/src/lib/middleware/index.js
+export function getModuleMiddlewares(path) {
+  if (existsSync(resolve(path, 'pages'))) {
+    // Scan for global middleware
+    if (existsSync(resolve(path, 'pages', 'global'))) {
+      scanForMiddlewareFunctions(
+        resolve(path, 'pages', 'global')
+      ).forEach((m) => {
+        addMiddleware(m);
+      });
+    }
+    
+    // Scan for admin middleware
+    if (existsSync(resolve(path, 'pages', 'admin'))) {
+      const routes = readdirSync(resolve(path, 'pages', 'admin'), {
+        withFileTypes: true
+      })
+        .filter((dirent) => dirent.isDirectory())
+        .map((dirent) => dirent.name);
+      
+      routes.forEach((route) => {
+        scanForMiddlewareFunctions(
+          resolve(path, 'pages', 'admin', route)
+        ).forEach((m) => {
+          addMiddleware(m);
+        });
+      });
+    }
+    
+    // Scan for frontStore middleware
+    if (existsSync(resolve(path, 'pages', 'frontStore'))) {
+      const routes = readdirSync(resolve(path, 'pages', 'frontStore'), {
+        withFileTypes: true
+      })
+        .filter((dirent) => dirent.isDirectory())
+        .map((dirent) => dirent.name);
+      
+      routes.forEach((route) => {
+        scanForMiddlewareFunctions(
+          resolve(path, 'pages', 'frontStore', route)
+        ).forEach((m) => {
+          addMiddleware(m);
+        });
+      });
+    }
+  }
+  
+  // Scan for API middleware
+  if (existsSync(resolve(path, 'api'))) {
+    const routes = readdirSync(resolve(path, 'api'), {
+      withFileTypes: true
+    })
+      .filter((dirent) => dirent.isDirectory())
+      .map((dirent) => dirent.name);
+    
+    routes.forEach((route) => {
+      scanForMiddlewareFunctions(
+        resolve(path, 'api', route)
+      ).forEach((m) => {
+        addMiddleware(m);
+      });
+    });
+  }
+}
+```
+
+## Practical Examples
+
+### Example 1: Authentication Middleware
+
+```javascript pages/global/auth.js
+import { verify } from 'jsonwebtoken';
+
+export default async function auth(request, response, next) {
+  const token = request.headers.authorization?.replace('Bearer ', '');
+  
+  if (token) {
+    try {
+      const decoded = verify(token, process.env.JWT_SECRET);
+      request.user = decoded;
+    } catch (error) {
+      // Invalid token, continue without user
+    }
+  }
+  
+  next();
+}
+```
+
+### Example 2: Validation Middleware
+
+```javascript api/createProduct/[auth]validate.js
+import { z } from 'zod';
+
+const productSchema = z.object({
+  name: z.string().min(1),
+  sku: z.string().min(1),
+  price: z.number().positive(),
+  status: z.number().optional()
+});
+
+export default async function validate(request, response, next) {
+  try {
+    productSchema.parse(request.body);
+    next();
+  } catch (error) {
+    response.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: error.errors
+    });
+  }
+}
+```
+
+### Example 3: Data Loading Middleware
+
+```javascript pages/frontStore/productView/loadProduct.js
+import { select } from '@evershop/postgres-query-builder';
+
+export default async function loadProduct(request, response, next) {
+  const { id } = request.params;
+  
+  const product = await select()
+    .from('product')
+    .where('uuid', '=', id)
+    .load(pool);
+  
+  if (!product) {
+    response.status(404);
+    // Will trigger notFound route
+    return;
+  }
+  
+  request.product = product;
+  next();
+}
+```
+
+### Example 4: Response Middleware
+
+```javascript api/createProduct/[validate]createProduct.js
+import { insert } from '@evershop/postgres-query-builder';
+import { emit } from '@evershop/evershop/src/lib/event/emitter';
+
+export default async function createProduct(request, response) {
+  const data = request.body;
+  
+  try {
+    const product = await insert('product')
+      .given(data)
+      .execute(pool);
+    
+    // Emit event
+    await emit('product_created', { product });
+    
+    response.json({
+      success: true,
+      data: product
+    });
+  } catch (error) {
+    response.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+```
+
+### Example 5: Error Handler
+
+```javascript pages/global/errorHandler.js
+export default function errorHandler(error, request, response, next) {
+  console.error('Error:', error);
+  
+  // Don't expose internal errors in production
+  const message = process.env.NODE_ENV === 'production'
+    ? 'Internal server error'
+    : error.message;
+  
+  response.status(500).json({
+    success: false,
+    message
+  });
+}
+```
+
+## Advanced Patterns
+
+### Conditional Execution
+
+```javascript
+export default async function conditionalMiddleware(request, response, next) {
+  if (request.path.startsWith('/api/admin')) {
+    // Check admin permissions
+    if (!request.user?.isAdmin) {
+      response.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+  }
+  
+  next();
+}
+```
+
+### Async Data Loading
+
+```javascript
+export default async function loadRelatedData(request, response, next) {
+  const { product } = request;
+  
+  // Load related data in parallel
+  const [category, variants, reviews] = await Promise.all([
+    loadCategory(product.category_id),
+    loadVariants(product.product_id),
+    loadReviews(product.product_id)
+  ]);
+  
+  request.product.category = category;
+  request.product.variants = variants;
+  request.product.reviews = reviews;
+  
+  next();
+}
+```
+
+### Request Transformation
+
+```javascript
+export default function transformRequest(request, response, next) {
+  // Sanitize input
+  if (request.body) {
+    Object.keys(request.body).forEach(key => {
+      if (typeof request.body[key] === 'string') {
+        request.body[key] = request.body[key].trim();
+      }
+    });
+  }
+  
+  next();
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep middleware focused">
+    Each middleware should do one thing well. Don't combine authentication, validation, and business logic in one function.
+  </Accordion>
+  
+  <Accordion title="Use meaningful names">
+    Middleware IDs should clearly indicate their purpose: `auth`, `validate`, `loadProduct`, not `middleware1`, `handler`, etc.
+  </Accordion>
+  
+  <Accordion title="Handle errors properly">
+    Always handle errors in middleware. Either pass them to `next(error)` or send an error response.
+  </Accordion>
+  
+  <Accordion title="Don't forget to call next()">
+    Unless you're sending a response, always call `next()` to continue the chain. Forgetting this will hang the request.
+  </Accordion>
+  
+  <Accordion title="Use dependencies wisely">
+    Only specify dependencies that are truly required. Over-specifying can make the middleware chain rigid.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+Never send multiple responses in the same middleware chain. Once you call `response.json()` or `response.send()`, don't call `next()` unless you want to trigger an error.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="bolt" href="/core-concepts/events">
+    Learn about the event system for decoupled communication
+  </Card>
+  <Card title="Routing" icon="route" href="/core-concepts/routing">
+    Revisit routing to see how it integrates with middleware
+  </Card>
+</CardGroup>

@@ -1,0 +1,431 @@
+---
+title: User Management Commands
+description: Create and manage admin users with evershop user commands
+---
+
+## Overview
+
+EverShop provides CLI commands to manage admin users without accessing the database directly. These commands handle password hashing and validation automatically.
+
+## Available Commands
+
+- `evershop user:create` - Create a new admin user
+- `evershop user:changePassword` - Change an admin user's password
+
+## user:create
+
+Create a new admin user account.
+
+### Usage
+
+```bash
+evershop user:create --name "Full Name" --email user@example.com --password SecurePass123
+```
+
+### Options
+
+| Option | Alias | Required | Description |
+|--------|-------|----------|-------------|
+| `--name` | `-n` | Yes | Admin user's full name |
+| `--email` | `-e` | Yes | Admin user's email address |
+| `--password` | `-p` | Yes | Admin user's password |
+
+### Examples
+
+#### Basic Usage
+
+```bash
+evershop user:create \
+  --name "John Doe" \
+  --email john@example.com \
+  --password MyPassword123
+```
+
+#### Using Short Flags
+
+```bash
+evershop user:create -n "Jane Smith" -e jane@example.com -p SecurePass456
+```
+
+#### Get Help
+
+```bash
+evershop user:create --help
+```
+
+### Password Requirements
+
+Passwords must:
+
+- Be at least 8 characters long
+- Contain at least one letter
+- Contain at least one digit
+
+```javascript
+// From src/bin/user/create.js
+function isValidPassword(password) {
+  return password.length >= 8;
+}
+```
+
+### Email Validation
+
+Email addresses must be valid format:
+
+```javascript
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+```
+
+### Implementation Details
+
+The command:
+
+1. Validates input parameters
+2. Hashes the password using bcrypt
+3. Inserts or updates the user in the database
+4. Uses `insertOnUpdate` to handle duplicate emails
+
+```javascript
+await insertOnUpdate('admin_user', ['email'])
+  .given({
+    full_name,
+    email,
+    password: hashPassword(password)
+  })
+  .execute(pool);
+```
+
+### Success Output
+
+```
+$ evershop user:create -n "Admin" -e admin@test.com -p TestPass123
+Admin user created successfully
+```
+
+### Error Handling
+
+#### Invalid Email
+
+```
+$ evershop user:create -n "Test" -e invalid-email -p Pass123
+Error: Invalid email format
+```
+
+#### Weak Password
+
+```
+$ evershop user:create -n "Test" -e test@test.com -p short
+Error: Invalid password. Password must be at least 8 characters long
+```
+
+#### Missing Required Field
+
+```
+$ evershop user:create -e test@test.com -p Pass123
+Error: Missing required argument: name
+```
+
+## user:changePassword
+
+Change the password for an existing admin user.
+
+### Usage
+
+```bash
+evershop user:changePassword --email user@example.com --password NewPassword123
+```
+
+### Options
+
+| Option | Alias | Required | Description |
+|--------|-------|----------|-------------|
+| `--email` | `-e` | Yes | Admin user's email address |
+| `--password` | `-p` | Yes | New password |
+
+### Examples
+
+#### Basic Usage
+
+```bash
+evershop user:changePassword \
+  --email admin@example.com \
+  --password NewSecurePass123
+```
+
+#### Using Short Flags
+
+```bash
+evershop user:changePassword -e admin@example.com -p NewPass456
+```
+
+#### Get Help
+
+```bash
+evershop user:changePassword --help
+```
+
+### Password Requirements
+
+Same requirements as `user:create`:
+
+- Minimum 8 characters
+- At least one letter
+- At least one digit
+
+### Implementation Details
+
+The command:
+
+1. Validates the new password
+2. Checks if the user exists
+3. Hashes the new password
+4. Updates the database
+
+```javascript
+// Find user
+const user = await select()
+  .from('admin_user')
+  .where('email', '=', email)
+  .load(pool);
+
+if (!user) {
+  throw new Error('User not found');
+}
+
+// Update password
+await update('admin_user')
+  .given({ password: hashPassword(password) })
+  .where('admin_user_id', '=', user.admin_user_id)
+  .execute(pool);
+```
+
+### Success Output
+
+```
+$ evershop user:changePassword -e admin@example.com -p NewPass123
+Password is updated successfully
+```
+
+### Error Handling
+
+#### User Not Found
+
+```
+$ evershop user:changePassword -e nonexistent@example.com -p Pass123
+Error: User not found
+```
+
+#### Weak Password
+
+```
+$ evershop user:changePassword -e admin@example.com -p short
+Error: Invalid password. Password must be at least 8 characters long
+```
+
+#### Missing Required Field
+
+```
+$ evershop user:changePassword -e admin@example.com
+Error: Missing required argument: password
+```
+
+## Password Hashing
+
+All passwords are hashed using bcrypt:
+
+```javascript
+import bcrypt from 'bcryptjs';
+
+export function hashPassword(password) {
+  return bcrypt.hashSync(password, 10);
+}
+```
+
+## Database Schema
+
+Admin users are stored in the `admin_user` table:
+
+```sql
+CREATE TABLE "admin_user" (
+  "admin_user_id" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  "uuid" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "status" boolean NOT NULL DEFAULT TRUE,
+  "email" varchar NOT NULL UNIQUE,
+  "password" varchar NOT NULL,
+  "full_name" varchar DEFAULT NULL,
+  "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+## Security Best Practices
+
+### Strong Passwords
+
+Use strong passwords with:
+
+- At least 12 characters (longer than minimum)
+- Mix of uppercase and lowercase
+- Numbers and special characters
+- No common words or patterns
+
+### Avoid Command History
+
+Passwords in command line are visible in shell history. For production:
+
+```bash
+# Use environment variables
+USER_PASSWORD="SecurePass123"
+evershop user:create -n "Admin" -e admin@example.com -p "$USER_PASSWORD"
+
+# Clear history after
+history -d -1
+```
+
+### Use Interactive Prompts
+
+For sensitive operations, consider using a script with interactive prompts:
+
+```bash
+#!/bin/bash
+read -p "Email: " EMAIL
+read -sp "Password: " PASSWORD
+echo
+evershop user:create -n "Admin" -e "$EMAIL" -p "$PASSWORD"
+```
+
+## Use Cases
+
+### Initial Admin Setup
+
+After installation:
+
+```bash
+evershop user:create \
+  -n "System Administrator" \
+  -e admin@yourstore.com \
+  -p "YourSecurePassword123"
+```
+
+### Creating Multiple Admins
+
+```bash
+# Create marketing admin
+evershop user:create \
+  -n "Marketing Team" \
+  -e marketing@yourstore.com \
+  -p "Marketing2024!"
+
+# Create support admin
+evershop user:create \
+  -n "Support Team" \
+  -e support@yourstore.com \
+  -p "Support2024!"
+```
+
+### Password Reset
+
+When an admin forgets their password:
+
+```bash
+evershop user:changePassword \
+  -e admin@yourstore.com \
+  -p "NewPassword123"
+```
+
+### Account Recovery
+
+If locked out of admin panel:
+
+```bash
+# Change password via CLI
+evershop user:changePassword \
+  -e your@email.com \
+  -p "RecoveryPass123"
+
+# Login with new password
+```
+
+## Automation Scripts
+
+### Bulk User Creation
+
+```bash
+#!/bin/bash
+# create_admins.sh
+
+USERS=(
+  "Admin One:admin1@example.com:Pass1234"
+  "Admin Two:admin2@example.com:Pass5678"
+  "Admin Three:admin3@example.com:Pass9012"
+)
+
+for user in "${USERS[@]}"; do
+  IFS=':' read -r NAME EMAIL PASSWORD <<< "$user"
+  evershop user:create -n "$NAME" -e "$EMAIL" -p "$PASSWORD"
+done
+```
+
+### Password Rotation
+
+```bash
+#!/bin/bash
+# rotate_password.sh
+
+EMAIL="$1"
+NEW_PASSWORD=$(openssl rand -base64 12)
+
+evershop user:changePassword -e "$EMAIL" -p "$NEW_PASSWORD"
+echo "New password for $EMAIL: $NEW_PASSWORD"
+```
+
+## Troubleshooting
+
+### Database Connection Error
+
+```
+Error: Connection terminated
+```
+
+**Solution**: Ensure `.env` file exists with database credentials.
+
+### User Already Exists
+
+The `user:create` command uses `insertOnUpdate`, so it will update the existing user if the email already exists:
+
+```bash
+# First time - creates user
+evershop user:create -n "Admin" -e admin@test.com -p Pass123
+
+# Second time - updates user
+evershop user:create -n "Admin Updated" -e admin@test.com -p Pass456
+```
+
+### Permission Denied
+
+```
+Error: permission denied for table admin_user
+```
+
+**Solution**: Verify database user has proper permissions:
+
+```sql
+GRANT ALL PRIVILEGES ON TABLE admin_user TO your_db_user;
+```
+
+## Related Commands
+
+- `evershop install` - Initial setup with first admin user
+- `evershop start` - Start the server to login
+
+## Admin Panel Access
+
+After creating users, access the admin panel:
+
+```
+URL: http://localhost:3000/admin
+Email: admin@example.com
+Password: YourPassword123
+```

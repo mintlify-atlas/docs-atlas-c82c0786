@@ -1,0 +1,534 @@
+---
+title: Docker Deployment
+description: Deploy EverShop using Docker and Docker Compose
+---
+
+Docker provides the fastest way to get EverShop up and running. This guide covers Docker deployment from development to production.
+
+## Quick Start with Docker
+
+Get started with EverShop in minutes using the official Docker image:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/evershopcommerce/evershop/main/docker-compose.yml > docker-compose.yml
+docker compose up -d
+```
+
+Your store will be available at `http://localhost:3000`.
+
+## Docker Compose Setup
+
+### Basic Configuration
+
+Here's the complete `docker-compose.yml` for EverShop:
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    image: evershop/evershop:latest
+    restart: always
+    environment:
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_PASSWORD: postgres
+      DB_USER: postgres
+      DB_NAME: postgres
+    networks:
+      - myevershop
+    depends_on:
+      - database
+    ports:
+      - 3000:3000
+  
+  database:
+    image: postgres:16
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - myevershop
+
+networks:
+  myevershop:
+    name: MyEverShop
+    driver: bridge
+
+volumes:
+  postgres-data:
+```
+
+## Step-by-Step Deployment
+
+<Steps>
+  <Step title="Create docker-compose.yml">
+    Create a new directory for your EverShop deployment and add the `docker-compose.yml` file:
+    
+    ```bash
+    mkdir evershop-docker
+    cd evershop-docker
+    nano docker-compose.yml
+    ```
+    
+    Paste the Docker Compose configuration above.
+  </Step>
+  
+  <Step title="Configure Environment Variables">
+    Create a `.env` file for sensitive credentials:
+    
+    ```bash
+    # .env
+    DB_PASSWORD=your_secure_password
+    POSTGRES_PASSWORD=your_secure_password
+    
+    JWT_ADMIN_SECRET=your-admin-secret-min-32-chars
+    JWT_ADMIN_REFRESH_SECRET=your-admin-refresh-secret-min-32-chars
+    JWT_CUSTOMER_SECRET=your-customer-secret-min-32-chars
+    JWT_CUSTOMER_REFRESH_SECRET=your-customer-refresh-secret-min-32-chars
+    ```
+    
+    Update `docker-compose.yml` to use environment variables:
+    
+    ```yaml
+    services:
+      app:
+        environment:
+          DB_PASSWORD: ${DB_PASSWORD}
+          JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET}
+          JWT_ADMIN_REFRESH_SECRET: ${JWT_ADMIN_REFRESH_SECRET}
+          JWT_CUSTOMER_SECRET: ${JWT_CUSTOMER_SECRET}
+          JWT_CUSTOMER_REFRESH_SECRET: ${JWT_CUSTOMER_REFRESH_SECRET}
+    ```
+  </Step>
+  
+  <Step title="Start the Services">
+    Launch EverShop and PostgreSQL:
+    
+    ```bash
+    docker compose up -d
+    ```
+    
+    Check the logs to ensure everything started correctly:
+    
+    ```bash
+    docker compose logs -f
+    ```
+  </Step>
+  
+  <Step title="Wait for Initialization">
+    The first startup takes a few minutes as EverShop:
+    - Installs dependencies
+    - Builds the application
+    - Initializes the database
+    
+    Monitor progress:
+    
+    ```bash
+    docker compose logs -f app
+    ```
+  </Step>
+  
+  <Step title="Access Your Store">
+    Once initialized, access:
+    - Storefront: `http://localhost:3000`
+    - Admin panel: `http://localhost:3000/admin`
+    
+    Default admin credentials:
+    - Email: `demo@evershop.io`
+    - Password: `123456`
+    
+    <Warning>
+    Change the default admin password immediately in production!
+    </Warning>
+  </Step>
+</Steps>
+
+## Production Configuration
+
+### Enhanced docker-compose.yml
+
+For production, enhance your configuration with health checks, resource limits, and better security:
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    image: evershop/evershop:latest
+    restart: always
+    environment:
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: evershop
+      DB_USER: evershop
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSLMODE: disable
+      
+      NODE_ENV: production
+      PORT: 3000
+      
+      JWT_ISSUER: evershop-production
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET}
+      JWT_ADMIN_REFRESH_SECRET: ${JWT_ADMIN_REFRESH_SECRET}
+      JWT_ADMIN_TOKEN_EXPIRY: 900
+      JWT_ADMIN_REFRESH_TOKEN_EXPIRY: 86400
+      
+      JWT_CUSTOMER_SECRET: ${JWT_CUSTOMER_SECRET}
+      JWT_CUSTOMER_REFRESH_SECRET: ${JWT_CUSTOMER_REFRESH_SECRET}
+      JWT_CUSTOMER_TOKEN_EXPIRY: 3600
+      JWT_CUSTOMER_REFRESH_TOKEN_EXPIRY: 604800
+    
+    volumes:
+      - evershop-media:/app/media
+      - evershop-public:/app/public
+    
+    networks:
+      - evershop-network
+    
+    depends_on:
+      database:
+        condition: service_healthy
+    
+    ports:
+      - "3000:3000"
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+  
+  database:
+    image: postgres:16
+    restart: unless-stopped
+    
+    environment:
+      POSTGRES_DB: evershop
+      POSTGRES_USER: evershop
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+    
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    
+    networks:
+      - evershop-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evershop"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  evershop-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  evershop-media:
+  evershop-public:
+```
+
+## Custom Dockerfile
+
+If you need to customize the Docker image, here's the base Dockerfile:
+
+```dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies
+RUN npm install -g npm@9
+
+# Copy application files
+COPY package*.json .
+COPY packages ./packages
+COPY themes ./themes
+COPY extensions ./extensions
+COPY public ./public
+COPY media ./media
+COPY config ./config
+COPY translations ./translations
+
+# Install and build
+RUN npm install
+RUN npm run build
+
+EXPOSE 80
+
+CMD ["npm", "run", "start"]
+```
+
+### Building Custom Image
+
+```bash
+# Build the image
+docker build -t my-evershop:latest .
+
+# Update docker-compose.yml to use your image
+services:
+  app:
+    image: my-evershop:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+```
+
+## Persistence and Volumes
+
+### Data Volumes
+
+EverShop requires persistent storage for:
+
+1. **Database** - PostgreSQL data
+2. **Media files** - Product images and uploads
+3. **Public assets** - Built static files
+
+```yaml
+volumes:
+  postgres-data:      # Database persistence
+  evershop-media:     # Uploaded media files
+  evershop-public:    # Built assets
+```
+
+### Backup Volumes
+
+```bash
+# Backup database
+docker compose exec database pg_dump -U evershop evershop > backup.sql
+
+# Backup media files
+docker compose cp app:/app/media ./media-backup
+
+# Restore database
+docker compose exec -T database psql -U evershop evershop < backup.sql
+
+# Restore media
+docker compose cp ./media-backup app:/app/media
+```
+
+## Networking
+
+### Reverse Proxy with Nginx
+
+For production, use Nginx as a reverse proxy:
+
+```yaml
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - evershop-network
+```
+
+**nginx.conf:**
+
+```nginx
+upstream evershop {
+    server app:3000;
+}
+
+server {
+    listen 80;
+    server_name yourstore.com;
+    
+    # Redirect to HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name yourstore.com;
+    
+    ssl_certificate /etc/nginx/ssl/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/key.pem;
+    
+    client_max_body_size 50M;
+    
+    location / {
+        proxy_pass http://evershop;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+## Environment-Specific Deployments
+
+### Development
+
+```yaml
+services:
+  app:
+    image: evershop/evershop:latest
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./src:/app/src  # Mount source for hot reload
+    command: npm run dev
+```
+
+### Staging
+
+```yaml
+services:
+  app:
+    image: evershop/evershop:staging
+    environment:
+      NODE_ENV: production
+      JWT_ADMIN_TOKEN_EXPIRY: 1800
+```
+
+### Production
+
+```yaml
+services:
+  app:
+    image: evershop/evershop:v2.1.0  # Use specific version
+    environment:
+      NODE_ENV: production
+```
+
+## Common Docker Commands
+
+```bash
+# Start services
+docker compose up -d
+
+# Stop services
+docker compose down
+
+# View logs
+docker compose logs -f
+docker compose logs app
+
+# Restart a service
+docker compose restart app
+
+# Execute commands in container
+docker compose exec app npm run build
+docker compose exec database psql -U evershop
+
+# View running containers
+docker compose ps
+
+# Remove volumes (caution: deletes data)
+docker compose down -v
+
+# Pull latest images
+docker compose pull
+
+# Scale services
+docker compose up -d --scale app=3
+```
+
+## Troubleshooting
+
+### Container Won't Start
+
+Check logs for errors:
+
+```bash
+docker compose logs app
+```
+
+Common issues:
+- Port 3000 already in use
+- Database connection failed
+- Missing environment variables
+
+### Database Connection Issues
+
+Verify database is healthy:
+
+```bash
+docker compose exec database pg_isready -U evershop
+```
+
+Check network connectivity:
+
+```bash
+docker compose exec app ping database
+```
+
+### Permission Issues
+
+Fix volume permissions:
+
+```bash
+docker compose exec app chown -R node:node /app/media
+docker compose exec app chown -R node:node /app/public
+```
+
+### Out of Memory
+
+Increase memory limits in `docker-compose.yml`:
+
+```yaml
+deploy:
+  resources:
+    limits:
+      memory: 4G
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Specific Versions" icon="tag">
+    Pin to specific image versions in production, not `latest`
+  </Card>
+  
+  <Card title="Health Checks" icon="heart-pulse">
+    Always configure health checks for automatic container recovery
+  </Card>
+  
+  <Card title="Resource Limits" icon="gauge">
+    Set CPU and memory limits to prevent resource exhaustion
+  </Card>
+  
+  <Card title="Persistent Volumes" icon="database">
+    Always use named volumes for database and media files
+  </Card>
+</CardGroup>

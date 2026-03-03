@@ -1,0 +1,206 @@
+---
+title: 'Creating Themes'
+description: 'Step-by-step guide to creating custom themes using the evershop theme:create command'
+---
+
+## Prerequisites
+
+Before creating a theme, ensure you have:
+
+- An EverShop project set up and running
+- Node.js and npm installed
+- Basic knowledge of React and TypeScript
+
+## Creating a New Theme
+
+EverShop provides a CLI command to scaffold a new theme with all necessary files:
+
+<Steps>
+  <Step title="Run the theme creation command">
+    Navigate to your EverShop project root and run:
+
+    ```bash
+    npm run theme:create
+    ```
+  </Step>
+
+  <Step title="Enter your theme name">
+    When prompted, enter a name for your theme:
+
+    ```
+    Enter new theme name (alphanumeric, dashes or underscores only): my-store-theme
+    ```
+
+    <Note>
+      Theme names can only contain:
+      - Letters (A-Z, a-z)
+      - Numbers (0-9)
+      - Dashes (-)
+      - Underscores (_)
+    </Note>
+  </Step>
+
+  <Step title="Theme files are created">
+    The command will create a new theme directory with the following structure:
+
+    ```
+    themes/my-store-theme/
+    ├── src/
+    │   └── pages/
+    │       └── homepage/
+    │           └── MyStoreTheme.tsx
+    ├── package.json
+    └── tsconfig.json
+    ```
+
+    You'll see a success message:
+
+    ```
+    Theme 'my-store-theme' created.
+    Edit your new page at: themes/my-store-theme/src/pages/homepage/MyStoreTheme.tsx
+    ```
+  </Step>
+
+  <Step title="Activate your theme">
+    Activate the newly created theme:
+
+    ```bash
+    npm run theme:active
+    ```
+
+    Select your theme from the list, and choose to run the build when prompted.
+  </Step>
+
+  <Step title="Start development server">
+    Start your development server to see the theme in action:
+
+    ```bash
+    npm run dev
+    ```
+
+    Visit your store's homepage to see the default theme component.
+  </Step>
+</Steps>
+
+## Generated Theme Files
+
+Let's explore what the `theme:create` command generates:
+
+### package.json
+
+A minimal `package.json` for your theme:
+
+```json
+{
+  "name": "my-store-theme",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc"
+  }
+}
+```
+
+### tsconfig.json
+
+TypeScript configuration with React support and path aliases:
+
+```json
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "target": "ES2018",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "jsx": "react",
+    "outDir": "./dist",
+    "rootDir": "src",
+    "declaration": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@components/*": [
+        "./src/components/*",
+        "../../node_modules/@evershop/evershop/src/components/*"
+      ]
+    }
+  },
+  "include": ["src"]
+}
+```
+
+### Default Component
+
+A sample homepage component:
+
+```tsx
+import React from 'react';
+
+const MyStoreTheme: React.FC = () => {
+  return (
+    <div className="p-5 text-center text-2xl border border-dashed border-gray-300 my-5 mx-2 bg-blue-50 text-blue-800">
+      <h3 className="mb-3">
+        Welcome to the <span className="text-pink-500">&#9829; </span>
+        my-store-theme <span className="text-pink-500">&#9829; </span> theme!
+      </h3>
+      <code className="text-sm break-all">
+        You can edit this file at:
+        themes/my-store-theme/src/pages/homepage/MyStoreTheme.tsx
+      </code>
+    </div>
+  );
+};
+
+export const layout = {
+  areaId: 'content',
+  sortOrder: 10
+};
+
+export default MyStoreTheme;
+```
+
+## Understanding Component Layout
+
+Every theme component exports a `layout` object that defines:
+
+- **areaId**: Where the component appears on the page (e.g., 'content', 'header', 'footer')
+- **sortOrder**: The component's position within that area (lower numbers appear first)
+
+```tsx
+export const layout = {
+  areaId: 'content',    // Render in the content area
+  sortOrder: 10         // Position within the content area
+};
+```
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Theme name already exists">
+    If you see the error `Theme 'name' already exists`, choose a different name or delete the existing theme directory first.
+  </Accordion>
+
+  <Accordion title="Invalid theme name">
+    Ensure your theme name only contains alphanumeric characters, dashes, or underscores. Special characters and spaces are not allowed.
+  </Accordion>
+
+  <Accordion title="Component not showing on page">
+    Make sure you've:
+    1. Activated the theme using `npm run theme:active`
+    2. Run `npm run build` to compile the theme
+    3. Restarted your development server
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you've created a theme, learn how to:
+
+<CardGroup cols={2}>
+  <Card title="Theme Structure" icon="folder-tree" href="/themes/theme-structure">
+    Explore the complete theme directory structure
+  </Card>
+  <Card title="Customize Your Theme" icon="palette" href="/themes/customization">
+    Add styling and override existing components
+  </Card>
+</CardGroup>

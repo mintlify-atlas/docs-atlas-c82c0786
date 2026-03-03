@@ -1,0 +1,251 @@
+---
+title: Event System API
+description: Event emitter and subscriber system for asynchronous event handling in EverShop
+---
+
+## Overview
+
+EverShop's event system provides a powerful pub/sub architecture for handling asynchronous operations. Events are emitted to a PostgreSQL database queue and processed by dedicated subscriber functions running in a separate process.
+
+## Event Emitter
+
+### emit()
+
+Emit an event to the event queue for asynchronous processing.
+
+```typescript
+import { emit } from '@evershop/evershop/src/lib/event/emitter';
+
+// Typed event (recommended)
+await emit('order_placed', {
+  order_id: 123,
+  customer_email: 'customer@example.com'
+});
+
+// Untyped event (for dynamic events)
+await emit('custom_event', {
+  key: 'value',
+  data: { /* ... */ }
+});
+```
+
+**Location:** `packages/evershop/src/lib/event/emitter.ts:26`
+
+#### Signature
+
+```typescript
+// Typed event
+function emit<T extends EventName>(
+  name: T,
+  data: EventDataRegistry[T]
+): Promise<void>;
+
+// Untyped event
+function emit(
+  name: string,
+  data: Record<string, any>
+): Promise<void>;
+```
+
+#### Parameters
+
+<ParamField path="name" type="string" required>
+  The name of the event to emit
+</ParamField>
+
+<ParamField path="data" type="object" required>
+  The event payload data. For typed events, the structure is validated against `EventDataRegistry`
+</ParamField>
+
+#### Returns
+
+Promise that resolves when the event is inserted into the database queue.
+
+#### Implementation Details
+
+The `emit()` function:
+- Inserts events into the `event` table in PostgreSQL
+- Events are processed asynchronously by the event manager process
+- Uses the query builder to ensure safe database operations
+
+**Source:** `packages/evershop/src/lib/event/emitter.ts:26`
+
+```typescript
+export async function emit(name: string, data: Record<string, any>) {
+  await insert('event')
+    .given({
+      name,
+      data
+    })
+    .execute(pool);
+}
+```
+
+## Event Subscribers
+
+### Creating a Subscriber
+
+Subscribers are functions that respond to specific events. They are automatically loaded from module directories.
+
+#### File Structure
+
+```
+modules/
+└── your-module/
+    └── subscribers/
+        └── event_name/
+            └── yourSubscriber.js
+```
+
+#### Subscriber Function
+
+```typescript
+import { EventSubscriber } from '@evershop/evershop/src/lib/event/subscriber';
+
+const mySubscriber: EventSubscriber<'category_created'> = async (data) => {
+  const categoryId = data.category_id;
+  const categoryUuid = data.uuid;
+  
+  // Your event handling logic
+  // ...
+};
+
+export default mySubscriber;
+```
+
+**Example:** `packages/evershop/src/modules/catalog/subscribers/category_created/buildUrlRewrite.ts:10`
+
+### Subscriber Execution
+
+Subscribers are executed by the event manager process:
+
+1. Events are loaded from the database queue every 10 seconds
+2. Matching subscribers are called for each event
+3. Events are marked as processed and removed from the queue
+4. Failed subscribers are logged but don't block other subscribers
+
+**Location:** `packages/evershop/src/lib/event/event-manager.js:99`
+
+### callSubscribers()
+
+Internal function to execute subscriber functions for an event.
+
+```javascript
+import { callSubscribers } from '@evershop/evershop/src/lib/event/callSubscibers';
+
+await callSubscribers(subscribers, eventData);
+```
+
+**Location:** `packages/evershop/src/lib/event/callSubscibers.js:3`
+
+#### Signature
+
+```javascript
+function callSubscribers(
+  subscribers: Function[],
+  eventData: Record<string, any>
+): Promise<void>
+```
+
+#### Implementation
+
+```javascript
+export async function callSubscribers(subscribers, eventData) {
+  const promises = subscribers.map(
+    (subscriber) =>
+      new Promise((resolve) => {
+        setTimeout(async () => {
+          try {
+            await subscriber(eventData);
+          } catch (e) {
+            error(e);
+          }
+          resolve();
+        }, 0);
+      })
+  );
+
+  await Promise.all(promises);
+}
+```
+
+## Event Manager
+
+The event manager is a separate process that:
+
+- Loads events from the database every 10 seconds
+- Maintains a queue of up to 10 events in memory
+- Executes matching subscribers for each event
+- Syncs completed events back to the database every 2 seconds
+- Removes processed events from the database
+
+**Location:** `packages/evershop/src/lib/event/event-manager.js:1`
+
+### Configuration
+
+```javascript
+const loadEventInterval = 10000;  // 10 seconds
+const syncEventInterval = 2000;   // 2 seconds
+const maxEvents = 10;             // Max events in memory
+```
+
+## Built-in Events
+
+### Common Events
+
+- `order_placed` - Triggered when an order is placed
+- `category_created` - Triggered when a category is created
+- `category_updated` - Triggered when a category is updated
+- `category_deleted` - Triggered when a category is deleted
+- `product_created` - Triggered when a product is created
+- `product_updated` - Triggered when a product is updated
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Typed Events">
+    Register your events in `EventDataRegistry` for type safety
+  </Step>
+  
+  <Step title="Keep Subscribers Focused">
+    Each subscriber should handle one specific task
+  </Step>
+  
+  <Step title="Handle Errors Gracefully">
+    Use try-catch blocks in subscribers to prevent one failure from affecting others
+  </Step>
+  
+  <Step title="Avoid Long-Running Operations">
+    Events are processed in batches - keep subscribers fast
+  </Step>
+  
+  <Step title="Use Descriptive Event Names">
+    Use snake_case names that clearly describe the event (e.g., `order_placed`, `payment_captured`)
+  </Step>
+</Steps>
+
+## Example: Order Confirmation Email
+
+```typescript
+import { EventSubscriber } from '@evershop/evershop/src/lib/event/subscriber';
+import { sendEmail } from '../services/email';
+
+const sendOrderConfirmationEmail: EventSubscriber<'order_placed'> = async (data) => {
+  const { order_id, customer_email } = data;
+  
+  try {
+    await sendEmail({
+      to: customer_email,
+      subject: 'Order Confirmation',
+      template: 'order-confirmation',
+      data: { order_id }
+    });
+  } catch (error) {
+    console.error('Failed to send order confirmation:', error);
+  }
+};
+
+export default sendOrderConfirmationEmail;
+```
+
+**Real Example:** `packages/evershop/src/modules/oms/subscribers/order_placed/sendOrderConfirmationEmail.ts:624`

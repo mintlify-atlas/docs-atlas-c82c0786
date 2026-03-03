@@ -1,0 +1,210 @@
+---
+title: Architecture Overview
+description: Understanding EverShop's modular architecture, folder structure, and monorepo organization
+---
+
+## Architecture Philosophy
+
+EverShop is a **modular, TypeScript-first eCommerce platform** built on a flexible architecture that allows for easy customization and extension. The platform is organized as a monorepo with a clear separation between core modules and extensions.
+
+## Monorepo Structure
+
+EverShop uses a monorepo structure located in `packages/`:
+
+```
+packages/
+├── evershop/              # Core platform
+├── postgres-query-builder/ # Database query builder
+└── create-evershop-app/    # CLI tool for bootstrapping
+```
+
+### Core Platform Structure
+
+The main EverShop package (`packages/evershop/`) follows this organization:
+
+```
+packages/evershop/src/
+├── bin/                   # CLI utilities and bootstrapping
+├── lib/                   # Core libraries
+│   ├── router/           # Routing system
+│   ├── middleware/       # Middleware handler
+│   ├── event/            # Event system
+│   ├── componee/         # Component system
+│   ├── webpack/          # Build tools
+│   └── util/             # Utility functions
+└── modules/              # Core modules
+    ├── base/
+    ├── catalog/
+    ├── checkout/
+    ├── customer/
+    ├── oms/
+    ├── cms/
+    ├── graphql/
+    └── ...
+```
+
+## Module Anatomy
+
+Each module follows a standardized structure:
+
+```
+modules/catalog/
+├── bootstrap.js          # Module initialization
+├── api/                  # API endpoints
+│   └── createProduct/
+│       ├── route.json    # Route configuration
+│       └── *.js          # Middleware files
+├── pages/                # Page routes
+│   ├── admin/           # Admin pages
+│   └── frontStore/      # Frontend pages
+├── graphql/             # GraphQL types and resolvers
+│   └── types/
+│       └── Product/
+│           ├── Product.graphql
+│           └── Product.resolvers.js
+├── services/            # Business logic
+├── subscribers/         # Event subscribers
+│   └── product_created/
+│       └── *.js
+└── components/          # React components
+```
+
+<Info>
+Every module can contain any combination of these directories. Not all directories are required.
+</Info>
+
+## Extension System
+
+EverShop supports extensions that follow the same structure as core modules:
+
+```
+extensions/
+└── sample/
+    ├── package.json
+    ├── bootstrap.js
+    ├── api/
+    ├── pages/
+    ├── graphql/
+    └── subscribers/
+```
+
+Extensions are configured in the main configuration file:
+
+```json
+{
+  "system": {
+    "extensions": [
+      {
+        "name": "sample",
+        "resolve": "extensions/sample",
+        "enabled": true,
+        "priority": 10
+      }
+    ]
+  }
+}
+```
+
+## Core Modules
+
+EverShop includes these core modules:
+
+- **base** - Fundamental configuration and utilities
+- **catalog** - Products, categories, collections, attributes
+- **checkout** - Cart, checkout flow, shipping
+- **customer** - Customer accounts and authentication
+- **oms** - Order management system
+- **cms** - Content management and pages
+- **graphql** - GraphQL schema and API
+- **auth** - Authentication and authorization
+- **promotion** - Coupons and promotions
+- **tax** - Tax configuration and calculation
+- **stripe**, **paypal**, **cod** - Payment methods
+
+## Configuration Schema
+
+Modules can extend the configuration schema in their `bootstrap.js`:
+
+```javascript packages/evershop/src/modules/catalog/bootstrap.js
+addProcessor('configurationSchema', (schema) => {
+  merge(schema, {
+    properties: {
+      catalog: {
+        type: 'object',
+        properties: {
+          product: {
+            type: 'object',
+            properties: {
+              image: {
+                type: 'object',
+                properties: {
+                  width: { type: 'integer' },
+                  height: { type: 'integer' }
+                }
+              }
+            }
+          },
+          showOutOfStockProduct: { type: 'boolean' },
+          collectionPageSize: { type: 'integer', minimum: 1 }
+        }
+      }
+    }
+  });
+  return schema;
+});
+```
+
+## Library Organization
+
+The `lib/` directory contains reusable core functionality:
+
+- **router/** - Route registration and matching
+- **middleware/** - Middleware parsing, sorting, and execution
+- **event/** - Event emitter and subscriber system
+- **componee/** - React component management
+- **webpack/** - Build configuration and compilation
+- **util/** - Registry, hooks, and utility functions
+- **postgres/** - Database connection
+- **locale/** - Internationalization
+- **log/** - Logging utilities
+
+<Note>
+The architecture is designed to be extensible. Extensions can override or extend any part of the core system without modifying core files.
+</Note>
+
+## Build System
+
+EverShop uses a dual-build approach:
+
+1. **Server-side**: TypeScript compiled to JavaScript
+2. **Client-side**: React components bundled with Webpack
+
+The build system automatically discovers and compiles:
+- API routes
+- Page components
+- GraphQL schemas
+- Middleware functions
+
+## Registry and Processors
+
+EverShop uses a **processor pattern** for extensibility. Processors allow modules to transform data at key points:
+
+```javascript
+import { addProcessor } from '@evershop/evershop/src/lib/util/registry.js';
+
+addProcessor('cartItemFields', registerCartItemProductUrlField, 0);
+addProcessor('productCollectionFilters', registerDefaultProductCollectionFilters, 1);
+```
+
+The third parameter is the priority (lower numbers execute first).
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Module System" icon="puzzle-piece" href="/core-concepts/module-system">
+    Learn how modules are loaded and initialized
+  </Card>
+  <Card title="Routing" icon="route" href="/core-concepts/routing">
+    Understand route configuration and middleware
+  </Card>
+</CardGroup>

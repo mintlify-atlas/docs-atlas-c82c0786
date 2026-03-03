@@ -1,0 +1,476 @@
+---
+title: 'Installation Guide'
+description: 'Install EverShop using Docker, npm, or manual installation'
+---
+
+# Installation Guide
+
+This guide will walk you through installing EverShop on your system. Choose the installation method that best fits your needs.
+
+<CardGroup cols={3}>
+  <Card title="Docker" icon="docker" href="#docker-installation">
+    Fastest way to get started
+  </Card>
+  <Card title="npm/npx" icon="npm" href="#npm-installation">
+    Quick setup with npm
+  </Card>
+  <Card title="Manual" icon="code" href="#manual-installation">
+    Full control over installation
+  </Card>
+</CardGroup>
+
+## Prerequisites
+
+Before installing EverShop, ensure you have:
+
+<CardGroup cols={2}>
+  <Card title="Node.js 18+" icon="node-js">
+    Download from [nodejs.org](https://nodejs.org/)
+  </Card>
+  <Card title="PostgreSQL 13+" icon="database">
+    Database server for data storage
+  </Card>
+</CardGroup>
+
+<Warning>
+  **Important:** EverShop requires PostgreSQL 13.0 or higher. Earlier versions are not supported and the installation will fail.
+</Warning>
+
+## Docker Installation
+
+The fastest way to get started with EverShop is using Docker. This method handles all dependencies automatically.
+
+<Steps>
+  <Step title="Download Docker Compose File">
+    Download the official `docker-compose.yml` file:
+
+    ```bash
+    curl -sSL https://raw.githubusercontent.com/evershopcommerce/evershop/main/docker-compose.yml > docker-compose.yml
+    ```
+
+    This will create a `docker-compose.yml` file in your current directory.
+  </Step>
+
+  <Step title="Review Configuration">
+    The Docker Compose file includes two services:
+
+    <CodeGroup>
+    ```yaml docker-compose.yml
+    version: '3.8'
+
+    services:
+      app:
+        image: evershop/evershop:latest
+        restart: always
+        environment:
+          DB_HOST: database
+          DB_PORT: 5432
+          DB_PASSWORD: postgres
+          DB_USER: postgres
+          DB_NAME: postgres
+        networks:
+          - myevershop
+        depends_on:
+          - database
+        ports:
+          - 3000:3000
+      
+      database:
+        image: postgres:16
+        restart: unless-stopped
+        volumes:
+          - postgres-data:/var/lib/postgresql/data
+        environment:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "5432:5432"
+        networks:
+          - myevershop
+
+    networks:
+      myevershop:
+        name: MyEverShop
+        driver: bridge
+
+    volumes:
+      postgres-data:
+    ```
+    </CodeGroup>
+
+    <Note>
+      The database credentials are set to default values. For production, change the `POSTGRES_PASSWORD` to a secure password.
+    </Note>
+  </Step>
+
+  <Step title="Start Services">
+    Launch EverShop and PostgreSQL containers:
+
+    ```bash
+    docker compose up -d
+    ```
+
+    This command will:
+    - Pull the latest EverShop image
+    - Pull PostgreSQL 16 image
+    - Create and start both containers
+    - Set up the network and volumes
+  </Step>
+
+  <Step title="Access Your Store">
+    Once the containers are running, access your store:
+
+    <CardGroup cols={2}>
+      <Card title="Storefront" icon="shop">
+        Visit [http://localhost:3000](http://localhost:3000)
+      </Card>
+      <Card title="Admin Panel" icon="gauge">
+        Visit [http://localhost:3000/admin](http://localhost:3000/admin)
+      </Card>
+    </CardGroup>
+
+    <Info>
+      The first startup may take a few minutes while the database is initialized.
+    </Info>
+  </Step>
+</Steps>
+
+### Docker Management Commands
+
+<CodeGroup>
+```bash Stop Services
+# Stop all containers
+docker compose stop
+```
+
+```bash View Logs
+# View application logs
+docker compose logs -f app
+
+# View database logs
+docker compose logs -f database
+```
+
+```bash Restart Services
+# Restart all services
+docker compose restart
+```
+
+```bash Remove Everything
+# Stop and remove containers, networks
+docker compose down
+
+# Remove containers, networks, and volumes
+docker compose down -v
+```
+</CodeGroup>
+
+## npm Installation
+
+Install EverShop using npm for a traditional Node.js setup.
+
+<Steps>
+  <Step title="Install PostgreSQL">
+    First, ensure PostgreSQL 13+ is installed and running on your system.
+
+    <Tabs>
+      <Tab title="macOS">
+        ```bash
+        # Using Homebrew
+        brew install postgresql@16
+        brew services start postgresql@16
+        ```
+      </Tab>
+      <Tab title="Ubuntu/Debian">
+        ```bash
+        sudo apt update
+        sudo apt install postgresql postgresql-contrib
+        sudo systemctl start postgresql
+        ```
+      </Tab>
+      <Tab title="Windows">
+        Download the installer from [postgresql.org](https://www.postgresql.org/download/windows/)
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Create Database">
+    Create a PostgreSQL database for EverShop:
+
+    ```bash
+    # Connect to PostgreSQL
+    psql -U postgres
+
+    # Create database
+    CREATE DATABASE evershop;
+
+    # Exit psql
+    \q
+    ```
+  </Step>
+
+  <Step title="Create Project">
+    Use npm to create a new EverShop project:
+
+    ```bash
+    # Create a new directory for your project
+    mkdir my-evershop-store
+    cd my-evershop-store
+
+    # Initialize with npm
+    npm init -y
+
+    # Install EverShop
+    npm install @evershop/evershop
+    ```
+  </Step>
+
+  <Step title="Run Setup">
+    Run the interactive setup wizard:
+
+    ```bash
+    npm run setup
+    ```
+
+    The setup wizard will prompt you for:
+    - **Database Host** (default: localhost)
+    - **Database Port** (default: 5432)
+    - **Database Name** (default: evershop)
+    - **Database User** (default: postgres)
+    - **Database Password**
+    - **Admin Full Name**
+    - **Admin Email**
+    - **Admin Password** (minimum 8 characters, must contain letters and numbers)
+
+    <Note>
+      The setup command creates a `.env` file with your database configuration and initializes the database schema.
+    </Note>
+  </Step>
+
+  <Step title="Build Assets">
+    Build the frontend and backend assets:
+
+    ```bash
+    npm run build
+    ```
+
+    This process:
+    - Compiles TypeScript to JavaScript
+    - Bundles React components with Webpack
+    - Processes and minifies CSS with Tailwind
+    - Optimizes assets for production
+  </Step>
+
+  <Step title="Start Server">
+    Launch the production server:
+
+    ```bash
+    npm run start
+    ```
+
+    Your store will be available at:
+    - Storefront: [http://localhost:3000](http://localhost:3000)
+    - Admin: [http://localhost:3000/admin](http://localhost:3000/admin)
+  </Step>
+</Steps>
+
+### Development Mode
+
+For development, use the dev server with hot reloading:
+
+```bash
+npm run dev
+```
+
+<Info>
+  Development mode includes hot module replacement (HMR) for faster development. Changes to React components and styles are reflected instantly without page refresh.
+</Info>
+
+### Environment Variables
+
+After running `npm run setup`, a `.env` file is created with your configuration:
+
+```bash .env
+DB_HOST="localhost"
+DB_PORT="5432"
+DB_NAME="evershop"
+DB_USER="postgres"
+DB_PASSWORD="your_password"
+DB_SSLMODE="disable"
+```
+
+<Warning>
+  Never commit the `.env` file to version control. It contains sensitive database credentials.
+</Warning>
+
+## Manual Installation
+
+For full control over the installation process, clone the repository and build from source.
+
+<Steps>
+  <Step title="Clone Repository">
+    Clone the EverShop repository:
+
+    ```bash
+    git clone https://github.com/evershopcommerce/evershop.git
+    cd evershop
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all required packages:
+
+    ```bash
+    npm install
+    ```
+
+    This installs dependencies for:
+    - Main EverShop package
+    - All workspace packages
+    - Development tools
+  </Step>
+
+  <Step title="Setup Database">
+    Ensure PostgreSQL is running, then run the setup:
+
+    ```bash
+    npm run setup
+    ```
+
+    Follow the interactive prompts to configure your database and create an admin user.
+  </Step>
+
+  <Step title="Compile TypeScript">
+    If you're developing or modifying core code, compile TypeScript:
+
+    ```bash
+    npm run compile
+    ```
+
+    This compiles TypeScript source files from `packages/evershop/src/` to `packages/evershop/dist/`.
+  </Step>
+
+  <Step title="Build and Start">
+    Build the application and start the server:
+
+    ```bash
+    npm run build
+    npm run start
+    ```
+  </Step>
+</Steps>
+
+### Development Commands
+
+<CodeGroup>
+```json package.json Scripts
+{
+  "scripts": {
+    "dev": "node ./packages/evershop/dist/bin/dev/index.js",
+    "start": "node ./packages/evershop/dist/bin/start/index.js",
+    "build": "node ./packages/evershop/dist/bin/build/index.js",
+    "setup": "evershop install",
+    "compile": "rimraf ./packages/evershop/dist && cd ./packages/evershop && swc ./src/ -d dist/ --config-file .swcrc --copy-files --strip-leading-paths",
+    "test": "ALLOW_CONFIG_MUTATIONS=true NODE_OPTIONS=--experimental-vm-modules node_modules/jest/bin/jest.js",
+    "lint": "eslint --fix --ext .js,.jsx,.ts,.tsx ./packages"
+  }
+}
+```
+</CodeGroup>
+
+## Troubleshooting
+
+### Database Connection Issues
+
+<AccordionGroup>
+  <Accordion title="Connection refused to PostgreSQL">
+    Ensure PostgreSQL is running:
+
+    ```bash
+    # Check PostgreSQL status (Linux/macOS)
+    sudo systemctl status postgresql
+
+    # macOS with Homebrew
+    brew services list
+
+    # Start PostgreSQL if not running
+    sudo systemctl start postgresql
+    ```
+  </Accordion>
+
+  <Accordion title="SSL/TLS connection errors">
+    The installer automatically detects SSL support. If you encounter SSL errors:
+
+    1. Check your `.env` file for `DB_SSLMODE` setting
+    2. Try setting `DB_SSLMODE="disable"` for local development
+    3. For production, ensure your PostgreSQL server has valid SSL certificates
+  </Accordion>
+
+  <Accordion title="PostgreSQL version too old">
+    EverShop requires PostgreSQL 13+. Check your version:
+
+    ```bash
+    psql --version
+    ```
+
+    Upgrade if necessary:
+    ```bash
+    # Ubuntu/Debian
+    sudo apt install postgresql-16
+
+    # macOS
+    brew upgrade postgresql
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Build Issues
+
+<AccordionGroup>
+  <Accordion title="Out of memory during build">
+    Increase Node.js memory limit:
+
+    ```bash
+    export NODE_OPTIONS="--max-old-space-size=4096"
+    npm run build
+    ```
+  </Accordion>
+
+  <Accordion title="Module not found errors">
+    Clear node_modules and reinstall:
+
+    ```bash
+    rm -rf node_modules package-lock.json
+    npm install
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Port Already in Use
+
+If port 3000 is already in use, modify the port in your configuration:
+
+```bash
+# Set custom port (before starting)
+export PORT=3001
+npm run start
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Learn basic operations and workflows
+  </Card>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Configure your store settings
+  </Card>
+  <Card title="Extensions" icon="puzzle-piece" href="/extensions/overview">
+    Add functionality with extensions
+  </Card>
+</CardGroup>
+
+<Tip>
+  Join our [Discord community](https://discord.gg/GSzt7dt7RM) if you need help with installation or have questions!
+</Tip>

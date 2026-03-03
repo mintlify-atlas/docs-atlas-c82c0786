@@ -1,0 +1,425 @@
+---
+title: Widget System API
+description: Widget registration and management for customizable UI components
+---
+
+## Overview
+
+EverShop's widget system provides a flexible way to create reusable, configurable UI components that can be added to pages through the admin panel. Widgets consist of two components: a setting component for configuration and a display component for rendering.
+
+## Widget Manager
+
+The WidgetManager is a singleton that manages widget registration, updates, and retrieval.
+
+**Location:** `packages/evershop/src/lib/widget/widgetManager.ts:66`
+
+## Widget Registration
+
+### registerWidget()
+
+Register a new widget type.
+
+```typescript
+import { registerWidget } from '@evershop/evershop/src/lib/widget/widgetManager';
+
+registerWidget({
+  type: 'text_block',
+  name: 'Text Block',
+  description: 'A simple text block widget',
+  enabled: true,
+  component: '/path/to/TextBlock.js',
+  settingComponent: '/path/to/TextBlockSetting.js'
+});
+```
+
+**Location:** `packages/evershop/src/lib/widget/widgetManager.ts:341`
+
+#### Signature
+
+```typescript
+function registerWidget(widget: Widget): boolean
+```
+
+#### Parameters
+
+<ParamField path="widget" type="Widget" required>
+  <Expandable title="properties">
+    <ParamField path="type" type="string" required>
+      Unique identifier for the widget. Only alphanumeric characters and underscores allowed. Must match `/^[a-zA-Z_][a-zA-Z0-9_]*$/`.
+    </ParamField>
+    <ParamField path="name" type="string" required>
+      Display name for the widget
+    </ParamField>
+    <ParamField path="description" type="string">
+      Description of what the widget does
+    </ParamField>
+    <ParamField path="enabled" type="boolean" default="true">
+      Whether the widget is enabled
+    </ParamField>
+    <ParamField path="component" type="string" required>
+      Absolute path to the display component (must be a .js file starting with uppercase)
+    </ParamField>
+    <ParamField path="settingComponent" type="string" required>
+      Absolute path to the settings component (must be a .js file starting with uppercase)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Returns
+
+- `true` if the widget was successfully registered
+- `false` if a widget with the same type already exists
+
+#### Validation Rules
+
+<Info>
+  Widget registration enforces several validation rules:
+  
+  1. Widget type must be alphanumeric with underscores only
+  2. Component paths must be valid, existing .js files
+  3. Component filenames must start with an uppercase letter
+  4. Widget types must be unique
+  5. Cannot register widgets after `getAllWidgets()` is called (manager is frozen)
+</Info>
+
+### updateWidget()
+
+Update properties of an existing widget.
+
+```typescript
+import { updateWidget } from '@evershop/evershop/src/lib/widget/widgetManager';
+
+updateWidget('text_block', {
+  name: 'Enhanced Text Block',
+  description: 'Updated description',
+  component: '/path/to/EnhancedTextBlock.js'
+});
+```
+
+**Location:** `packages/evershop/src/lib/widget/widgetManager.ts:352`
+
+#### Signature
+
+```typescript
+function updateWidget(
+  widgetType: string,
+  updates: Partial<Widget>
+): boolean
+```
+
+#### Use Case
+
+Third-party extensions can override core widget components:
+
+```typescript
+// In a third-party extension's bootstrap file
+updateWidget('product_carousel', {
+  component: '/extensions/my-extension/components/CustomProductCarousel.js',
+  settingComponent: '/extensions/my-extension/components/CustomProductCarouselSettings.js'
+});
+```
+
+**Implementation:** `packages/evershop/src/lib/widget/widgetManager.ts:165`
+
+### removeWidget()
+
+Remove a widget from the registry.
+
+```typescript
+import { removeWidget } from '@evershop/evershop/src/lib/widget/widgetManager';
+
+removeWidget('text_block');
+```
+
+**Location:** `packages/evershop/src/lib/widget/widgetManager.ts:365`
+
+#### Signature
+
+```typescript
+function removeWidget(widgetType: string): boolean
+```
+
+## Widget Retrieval
+
+### getWidget()
+
+Get a single widget by type.
+
+```typescript
+import { getWidget } from '@evershop/evershop/src/lib/widget/widgetManager';
+
+const widget = getWidget('text_block');
+if (widget) {
+  console.log(widget.name);
+  console.log(widget.component);
+}
+```
+
+**Location:** `packages/evershop/src/lib/widget/widgetManager.ts:373`
+
+#### Signature
+
+```typescript
+function getWidget(widgetType: string): Widget | undefined
+```
+
+### hasWidget()
+
+Check if a widget is registered.
+
+```typescript
+import { hasWidget } from '@evershop/evershop/src/lib/widget/widgetManager';
+
+if (hasWidget('text_block')) {
+  console.log('Text block widget is available');
+}
+```
+
+**Location:** `packages/evershop/src/lib/widget/widgetManager.ts:382`
+
+#### Signature
+
+```typescript
+function hasWidget(widgetType: string): boolean
+```
+
+### getAllWidgets()
+
+Get all registered widgets.
+
+```typescript
+import { getAllWidgets } from '@evershop/evershop/src/lib/widget/widgetManager';
+
+const widgets = getAllWidgets();
+widgets.forEach(widget => {
+  console.log(`${widget.name} (${widget.type})`);
+});
+```
+
+**Location:** `packages/evershop/src/lib/widget/widgetManager.ts:304`
+
+<Warning>
+  Calling `getAllWidgets()` freezes the widget manager. After this call, no further registrations, updates, or removals are allowed. This typically happens during the application bootstrap phase.
+</Warning>
+
+#### Signature
+
+```typescript
+function getAllWidgets(): Widget[]
+```
+
+#### Returns
+
+Array of widgets with additional generated keys:
+
+```typescript
+interface WidgetWithKeys extends Widget {
+  settingComponentKey: string;  // Generated unique key
+  componentKey: string;         // Generated unique key
+}
+```
+
+**Implementation:** `packages/evershop/src/lib/widget/widgetManager.ts:304`
+
+### getEnabledWidgets()
+
+Get only enabled widgets.
+
+```typescript
+import { getEnabledWidgets } from '@evershop/evershop/src/lib/widget/widgetManager';
+
+const enabledWidgets = getEnabledWidgets();
+```
+
+**Location:** `packages/evershop/src/lib/widget/widgetManager.ts:321`
+
+#### Signature
+
+```typescript
+function getEnabledWidgets(): Widget[]
+```
+
+## Widget Components
+
+### Display Component
+
+The display component renders the widget on the frontend.
+
+```javascript
+// TextBlock.js
+import React from 'react';
+
+export default function TextBlock({ content, title }) {
+  return (
+    <div className="text-block">
+      {title && <h2>{title}</h2>}
+      <div dangerouslySetInnerHTML={{ __html: content }} />
+    </div>
+  );
+}
+```
+
+### Settings Component
+
+The settings component provides an admin UI for configuring the widget.
+
+```javascript
+// TextBlockSetting.js
+import React from 'react';
+import { Input } from '@components/common/form/fields/Input';
+import { Textarea } from '@components/common/form/fields/Textarea';
+
+export default function TextBlockSetting({ widget, updateWidget }) {
+  return (
+    <div>
+      <Input
+        name="title"
+        label="Title"
+        value={widget.settings?.title || ''}
+        onChange={(e) => updateWidget({
+          ...widget,
+          settings: {
+            ...widget.settings,
+            title: e.target.value
+          }
+        })}
+      />
+      <Textarea
+        name="content"
+        label="Content"
+        value={widget.settings?.content || ''}
+        onChange={(e) => updateWidget({
+          ...widget,
+          settings: {
+            ...widget.settings,
+            content: e.target.value
+          }
+        })}
+      />
+    </div>
+  );
+}
+```
+
+## Freezing Behavior
+
+The widget manager has a built-in immutability feature:
+
+```typescript
+// During bootstrap phase
+registerWidget({ /* ... */ });  // ✓ Works
+
+// After bootstrap (when widgets are retrieved)
+const widgets = getAllWidgets();  // Freezes the manager
+
+registerWidget({ /* ... */ });  // ✗ Throws error
+updateWidget('type', { /* ... */ });  // ✗ Throws error
+removeWidget('type');  // ✗ Throws error
+```
+
+**Implementation:** `packages/evershop/src/lib/widget/widgetManager.ts:88`
+
+<Info>
+  This ensures widgets are only modified during the bootstrap phase, preventing runtime modifications that could cause inconsistencies.
+</Info>
+
+## Best Practices
+
+<Steps>
+  <Step title="Register in Bootstrap Files">
+    Always register widgets in module bootstrap files (bootstrap.js), not at runtime.
+  </Step>
+  
+  <Step title="Use Descriptive Types">
+    Widget types should be clear and unique (e.g., `product_carousel`, `image_slider`, `text_block`).
+  </Step>
+  
+  <Step title="Follow Component Naming">
+    Component filenames must start with uppercase (e.g., `TextBlock.js`, not `textBlock.js`).
+  </Step>
+  
+  <Step title="Validate Settings">
+    Settings components should validate user input and provide helpful error messages.
+  </Step>
+  
+  <Step title="Make Widgets Reusable">
+    Design widgets to be flexible and configurable through settings rather than hard-coded.
+  </Step>
+  
+  <Step title="Handle Missing Data">
+    Display components should gracefully handle missing or invalid settings.
+  </Step>
+</Steps>
+
+## Complete Example
+
+```javascript
+// modules/cms/bootstrap.js
+import { registerWidget } from '@evershop/evershop/src/lib/widget/widgetManager';
+import path from 'path';
+
+export default function bootstrap() {
+  // Register a custom widget
+  registerWidget({
+    type: 'featured_products',
+    name: 'Featured Products',
+    description: 'Display a grid of featured products',
+    enabled: true,
+    component: path.resolve(__dirname, 'components/FeaturedProducts.js'),
+    settingComponent: path.resolve(__dirname, 'components/FeaturedProductsSetting.js')
+  });
+}
+```
+
+```javascript
+// components/FeaturedProducts.js
+import React from 'react';
+import { useQuery } from '@apollo/client';
+
+export default function FeaturedProducts({ count, categoryId }) {
+  const { data, loading } = useQuery(FEATURED_PRODUCTS_QUERY, {
+    variables: { count: count || 4, categoryId }
+  });
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <div className="featured-products">
+      <h2>Featured Products</h2>
+      <div className="product-grid">
+        {data.products.map(product => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+```javascript
+// components/FeaturedProductsSetting.js
+import React from 'react';
+
+export default function FeaturedProductsSetting({ widget, updateWidget }) {
+  return (
+    <div>
+      <label>
+        Product Count:
+        <input
+          type="number"
+          min="1"
+          max="12"
+          value={widget.settings?.count || 4}
+          onChange={(e) => updateWidget({
+            ...widget,
+            settings: {
+              ...widget.settings,
+              count: parseInt(e.target.value, 10)
+            }
+          })}
+        />
+      </label>
+    </div>
+  );
+}
+```

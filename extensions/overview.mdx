@@ -1,0 +1,135 @@
+---
+title: Extensions Overview
+description: Learn about EverShop extensions, their use cases, and benefits for extending your store functionality
+---
+
+Extensions are modular packages that allow you to add custom functionality to your EverShop store without modifying the core codebase. They provide a clean separation between your custom code and the core platform.
+
+## What are Extensions?
+
+Extensions in EverShop are self-contained modules that can:
+
+- Add new pages and routes to your store
+- Create custom API endpoints
+- Subscribe to system events
+- Extend GraphQL schema with custom types and resolvers
+- Register scheduled cron jobs
+- Add UI components to existing pages
+- Implement custom business logic
+
+Extensions follow the same structure as core modules but are kept separate, making them easy to maintain, update, and share across projects.
+
+## Use Cases
+
+### Custom Integrations
+
+Build integrations with third-party services like payment gateways, shipping providers, or marketing platforms without touching core code.
+
+### Business Logic
+
+Implement store-specific business rules, pricing logic, or validation that's unique to your business.
+
+### Event Handlers
+
+React to system events like product creation, order placement, or customer registration to trigger custom workflows.
+
+```javascript
+// Example: React to product creation
+export default function consoleLog(data) {
+  console.log('Product Created:', data);
+}
+```
+
+### Custom Pages
+
+Add completely new pages to your storefront or admin panel:
+
+- Custom dashboards
+- Reporting pages
+- Customer portals
+- Landing pages
+
+### API Extensions
+
+Create custom REST or GraphQL endpoints for mobile apps, integrations, or custom frontend applications.
+
+## Benefits
+
+### Separation of Concerns
+
+Keep your custom code separate from core EverShop code. This makes it easier to:
+
+- Upgrade EverShop without conflicts
+- Share extensions across multiple stores
+- Maintain and debug your customizations
+
+### Modular Architecture
+
+Extensions are self-contained units that can be:
+
+- Enabled or disabled independently
+- Developed and tested in isolation
+- Version controlled separately
+- Shared with the community
+
+### Priority System
+
+Extensions support a priority system that controls the order in which they're loaded. This allows you to:
+
+- Control execution order
+- Override functionality from other extensions
+- Build extension dependencies
+
+```json
+{
+  "system": {
+    "extensions": [
+      {
+        "name": "sample",
+        "resolve": "extensions/sample",
+        "enabled": true,
+        "priority": 10
+      }
+    ]
+  }
+}
+```
+
+Lower priority numbers are loaded first, giving higher priority extensions the ability to override earlier ones.
+
+### Development Mode Support
+
+Extensions work seamlessly in both development and production:
+
+- **Development**: Hot reload from `src/` directory
+- **Production**: Serve compiled code from `dist/` directory
+
+### Full Platform Access
+
+Extensions have access to:
+
+- Database connection pool
+- Event system
+- Configuration
+- Utility functions
+- GraphQL context
+- Request/response objects
+
+## Extension vs Module
+
+While extensions and modules share similar structures, they serve different purposes:
+
+| Aspect | Modules | Extensions |
+|--------|---------|------------|
+| Location | `packages/evershop/src/modules/` | `extensions/` or `node_modules/` |
+| Purpose | Core platform features | Custom functionality |
+| Updates | Updated with EverShop | Maintained independently |
+| Configuration | Built-in | Manually enabled in config |
+
+## Getting Started
+
+Ready to create your first extension? Check out the [Creating Extensions](/extensions/creating-extensions) guide to get started.
+
+For a deep dive into extension structure, see [Extension Structure](/extensions/extension-structure).
+
+To learn about hooks and events, visit [Hooks and Events](/extensions/hooks-and-events).

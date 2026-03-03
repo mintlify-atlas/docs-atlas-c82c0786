@@ -1,0 +1,430 @@
+---
+title: 'Theme Customization'
+description: 'Learn how to style components, override core functionality, and customize Tailwind CSS in your EverShop theme'
+---
+
+## Styling with Tailwind CSS
+
+EverShop themes use Tailwind CSS for styling. All utility classes are available in your theme components.
+
+### Using Tailwind Classes
+
+Apply Tailwind utilities directly in your component JSX:
+
+```tsx
+import React from 'react';
+
+export default function StyledComponent() {
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold text-gray-900 mb-4">
+        Welcome to My Store
+      </h1>
+      <p className="text-gray-600 leading-relaxed">
+        This component uses Tailwind CSS for styling.
+      </p>
+      <button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors">
+        Shop Now
+      </button>
+    </div>
+  );
+}
+
+export const layout = {
+  areaId: 'content',
+  sortOrder: 10
+};
+```
+
+### Responsive Design
+
+Use Tailwind's responsive modifiers:
+
+```tsx
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  {/* Responsive grid: 1 column mobile, 2 tablet, 4 desktop */}
+</div>
+```
+
+### Dark Mode Support
+
+```tsx
+<div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+  <p>This content adapts to dark mode</p>
+</div>
+```
+
+## Custom Tailwind Configuration
+
+You can extend Tailwind's default configuration with theme-specific customizations.
+
+### Creating a Custom Config
+
+Create `tailwind.config.js` in your theme's `dist/` directory:
+
+```javascript
+// themes/my-theme/dist/tailwind.config.js
+export default {
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          50: '#eff6ff',
+          100: '#dbeafe',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          900: '#1e3a8a',
+        },
+        brand: '#ff6b6b',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        heading: ['Poppins', 'sans-serif'],
+      },
+      spacing: {
+        '128': '32rem',
+        '144': '36rem',
+      },
+      borderRadius: {
+        '4xl': '2rem',
+      },
+    },
+  },
+};
+```
+
+<Note>
+  Custom Tailwind configs should be placed in the `dist/` directory, not `src/`. Make sure to rebuild your theme after adding or modifying the config.
+</Note>
+
+### Using Custom Theme Values
+
+After defining custom values, use them in your components:
+
+```tsx
+<div className="bg-primary-600 text-white rounded-4xl p-8">
+  <h1 className="font-heading text-4xl">Custom Styled Heading</h1>
+  <p className="font-sans mt-4">Using custom font families</p>
+</div>
+```
+
+## Overriding Core Components
+
+The most powerful feature of EverShop themes is the ability to override core components.
+
+### Using theme:twizz Command
+
+The `theme:twizz` command helps you override existing EverShop components:
+
+<Steps>
+  <Step title="Run the override command">
+    ```bash
+    npm run theme:twizz
+    ```
+  </Step>
+
+  <Step title="Select a component to override">
+    The command will scan all available EverShop components and display them in an interactive list:
+
+    ```
+    ? Select a file to override:
+    ❯ src/components/common/Button.tsx
+      src/components/frontStore/Header.tsx
+      src/modules/catalog/pages/frontStore/productDetail/ProductName.tsx
+      ...
+    ```
+
+    Type to search and select the component you want to customize.
+  </Step>
+
+  <Step title="Review dependencies">
+    The command analyzes the component and shows its dependencies:
+
+    ```
+    Analyzing dependencies...
+    Found 3 dependencies:
+      src/components/common/Icon.tsx
+      src/components/common/Price.tsx
+      src/lib/util/formatPrice.ts
+    
+    ? Copy 3 dependency files along with the main file? (Y/n)
+    ```
+
+    Choose whether to copy dependent files for complete customization.
+  </Step>
+
+  <Step title="Component is copied to your theme">
+    The component and its dependencies are copied to your theme:
+
+    ```
+    Successfully created 4 override file(s):
+    • themes/my-theme/src/components/common/Button.tsx
+    • themes/my-theme/src/components/common/Icon.tsx
+    • themes/my-theme/src/components/common/Price.tsx
+    • themes/my-theme/src/lib/util/formatPrice.ts
+    ```
+  </Step>
+
+  <Step title="Customize the component">
+    Edit the copied component in your theme:
+
+    ```tsx
+    // themes/my-theme/src/components/common/Button.tsx
+    import React from 'react';
+
+    export default function Button({ children, ...props }) {
+      return (
+        <button 
+          className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-semibold shadow-lg hover:shadow-xl transition-all"
+          {...props}
+        >
+          {children}
+        </button>
+      );
+    }
+    ```
+  </Step>
+
+  <Step title="Rebuild your theme">
+    ```bash
+    npm run build
+    ```
+
+    Your customized component will now be used throughout the store!
+  </Step>
+</Steps>
+
+### How Component Overriding Works
+
+EverShop follows a component resolution priority:
+
+1. **Theme components** (your customizations) - Highest priority
+2. **Module components** (EverShop defaults)
+3. **Core components** (base components)
+
+When you copy a component to your theme, it automatically takes precedence.
+
+### Override Mapping
+
+Components are mapped from EverShop to your theme as follows:
+
+| Original Location | Theme Location | Description |
+|-------------------|----------------|-------------|
+| `src/components/common/` | `themes/my-theme/src/components/common/` | Shared components |
+| `src/components/frontStore/` | `themes/my-theme/src/components/frontStore/` | Store components |
+| `src/modules/*/pages/frontStore/` | `themes/my-theme/src/pages/` | Page components |
+
+## Importing Components
+
+Your theme can import both EverShop core components and custom components.
+
+### Import from EverShop Core
+
+Use the `@components` alias configured in `tsconfig.json`:
+
+```tsx
+import Button from '@components/common/Button';
+import ProductCard from '@components/frontStore/ProductCard';
+
+export default function CustomPage() {
+  return (
+    <div>
+      <ProductCard />
+      <Button>Add to Cart</Button>
+    </div>
+  );
+}
+```
+
+### Import Your Theme Components
+
+Use relative imports for custom theme components:
+
+```tsx
+import CustomButton from '../../components/common/CustomButton';
+import Hero from '../common/Hero';
+
+export default function Homepage() {
+  return (
+    <div>
+      <Hero />
+      <CustomButton>Shop Now</CustomButton>
+    </div>
+  );
+}
+```
+
+## Common Customization Patterns
+
+### Custom Product Card
+
+```tsx
+// themes/my-theme/src/components/frontStore/ProductCard.tsx
+import React from 'react';
+import { Product } from '@evershop/evershop/src/types';
+
+interface ProductCardProps {
+  product: Product;
+}
+
+export default function ProductCard({ product }: ProductCardProps) {
+  return (
+    <div className="group relative bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow overflow-hidden">
+      <div className="aspect-w-1 aspect-h-1 bg-gray-200 overflow-hidden">
+        <img 
+          src={product.image} 
+          alt={product.name}
+          className="object-cover group-hover:scale-105 transition-transform duration-300"
+        />
+      </div>
+      <div className="p-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          {product.name}
+        </h3>
+        <p className="text-2xl font-bold text-primary-600">
+          ${product.price}
+        </p>
+        <button className="mt-4 w-full bg-primary-600 hover:bg-primary-700 text-white py-2 rounded-lg transition-colors">
+          Add to Cart
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+### Custom Header
+
+```tsx
+// themes/my-theme/src/pages/all/CustomHeader.tsx
+import React from 'react';
+
+export default function CustomHeader() {
+  return (
+    <header className="bg-white shadow-sm">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <div className="flex items-center">
+            <img src="/logo.svg" alt="Logo" className="h-8" />
+          </div>
+          <nav className="hidden md:flex space-x-8">
+            <a href="/" className="text-gray-700 hover:text-primary-600">Home</a>
+            <a href="/products" className="text-gray-700 hover:text-primary-600">Shop</a>
+            <a href="/about" className="text-gray-700 hover:text-primary-600">About</a>
+          </nav>
+          <div className="flex items-center space-x-4">
+            <a href="/cart" className="text-gray-700 hover:text-primary-600">
+              Cart (0)
+            </a>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export const layout = {
+  areaId: 'header',
+  sortOrder: 1
+};
+```
+
+### Custom Homepage Hero
+
+```tsx
+// themes/my-theme/src/pages/homepage/Hero.tsx
+import React from 'react';
+
+export default function Hero() {
+  return (
+    <section className="relative h-[600px] bg-gradient-to-r from-purple-600 to-pink-600 overflow-hidden">
+      <div className="absolute inset-0 bg-black opacity-20"></div>
+      <div className="relative container mx-auto px-4 h-full flex items-center">
+        <div className="max-w-2xl text-white">
+          <h1 className="text-5xl md:text-6xl font-bold mb-4">
+            Welcome to Our Store
+          </h1>
+          <p className="text-xl md:text-2xl mb-8 text-gray-100">
+            Discover amazing products at unbeatable prices
+          </p>
+          <button className="bg-white text-purple-600 px-8 py-4 rounded-full font-semibold text-lg hover:bg-gray-100 transition-colors">
+            Shop Now
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export const layout = {
+  areaId: 'content',
+  sortOrder: 1
+};
+```
+
+## Theme Development Workflow
+
+<Steps>
+  <Step title="Create or modify components">
+    Edit files in `themes/my-theme/src/`
+  </Step>
+
+  <Step title="Run development server">
+    ```bash
+    npm run dev
+    ```
+    Changes are reflected in real-time during development.
+  </Step>
+
+  <Step title="Test your changes">
+    Visit your store in the browser and verify your customizations.
+  </Step>
+
+  <Step title="Build for production">
+    ```bash
+    npm run build
+    ```
+    Compiles your theme to the `dist/` directory.
+  </Step>
+</Steps>
+
+## Best Practices
+
+<Check>
+  **Do:**
+  - Use Tailwind utility classes for styling
+  - Override only components you need to customize
+  - Keep components small and focused
+  - Use TypeScript for type safety
+  - Test on multiple screen sizes
+</Check>
+
+<Warning>
+  **Don't:**
+  - Edit files directly in `dist/` (they'll be overwritten)
+  - Override too many components unnecessarily
+  - Hardcode values that should be configurable
+  - Forget to run `npm run build` before deploying
+</Warning>
+
+## CLI Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `npm run theme:create` | Create a new theme with scaffolded files |
+| `npm run theme:active` | Switch between installed themes |
+| `npm run theme:twizz` | Override core EverShop components |
+| `npm run build` | Compile theme from `src/` to `dist/` |
+| `npm run dev` | Start development server with hot reload |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Theme Structure" icon="folder-tree" href="/themes/theme-structure">
+    Dive deeper into theme organization
+  </Card>
+  <Card title="Components" icon="puzzle-piece" href="/components/overview">
+    Learn about EverShop's component system
+  </Card>
+</CardGroup>

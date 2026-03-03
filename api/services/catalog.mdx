@@ -1,0 +1,422 @@
+---
+title: "Catalog Services"
+description: "Catalog module services for managing products, categories, collections, and attributes"
+---
+
+The Catalog module provides services for managing your product catalog, including products, categories, collections, and product attributes.
+
+## Product Services
+
+### createProduct
+
+Creates a new product with all related data including inventory, attributes, and images.
+
+```javascript
+import { createProduct } from '@evershop/evershop/src/modules/catalog/services';
+
+const product = await createProduct({
+  name: 'Sample Product',
+  url_key: 'sample-product',
+  status: 1,
+  sku: 'SAMPLE-001',
+  price: 99.99,
+  qty: 100,
+  manage_stock: true,
+  stock_availability: true,
+  group_id: 1,
+  visibility: 'catalog_search',
+  attributes: [
+    { attribute_code: 'color', value: '1' },
+    { attribute_code: 'size', value: 'Large' }
+  ],
+  images: ['/images/product1.jpg']
+}, {});
+```
+
+**Parameters:**
+- `data` (ProductData): Product data object
+  - `name` (string, required): Product name
+  - `url_key` (string): URL-friendly identifier
+  - `status` (string, required): Product status
+  - `sku` (string, required): Stock keeping unit
+  - `price` (number, required): Product price
+  - `qty` (number, required): Stock quantity
+  - `manage_stock` (boolean, required): Enable stock management
+  - `stock_availability` (boolean, required): Stock availability status
+  - `group_id` (number, required): Attribute group ID
+  - `visibility` (string): Product visibility setting
+  - `attributes` (array): Product attributes
+  - `images` (array): Product image paths
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the created product object
+
+---
+
+### updateProduct
+
+Updates an existing product and all related data.
+
+```javascript
+import { updateProduct } from '@evershop/evershop/src/modules/catalog/services';
+
+const product = await updateProduct(
+  'product-uuid',
+  {
+    name: 'Updated Product Name',
+    price: 149.99,
+    qty: 50,
+    attributes: [
+      { attribute_code: 'color', value: '2' }
+    ]
+  },
+  {}
+);
+```
+
+**Parameters:**
+- `uuid` (string): Product UUID
+- `data` (ProductData): Product data to update
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the updated product object
+
+---
+
+### deleteProduct
+
+Deletes a product by UUID.
+
+```javascript
+import { deleteProduct } from '@evershop/evershop/src/modules/catalog/services';
+
+await deleteProduct('product-uuid', {});
+```
+
+**Parameters:**
+- `uuid` (string): Product UUID
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the deleted product data
+
+---
+
+## Category Services
+
+### createCategory
+
+Creates a new category with description data.
+
+```javascript
+import { createCategory } from '@evershop/evershop/src/modules/catalog/services';
+
+const category = await createCategory({
+  name: 'Electronics',
+  url_key: 'electronics',
+  status: 1,
+  parent_id: null,
+  description: 'Electronic products and accessories',
+  meta_title: 'Electronics',
+  meta_description: 'Shop electronics',
+  meta_keywords: 'electronics, gadgets'
+}, {});
+```
+
+**Parameters:**
+- `data` (CategoryData): Category data object
+  - `name` (string, required): Category name
+  - `url_key` (string, required): URL-friendly identifier
+  - `status` (number): Category status (0=disabled, 1=enabled)
+  - `parent_id` (number): Parent category ID
+  - `description` (string): Category description
+  - `meta_title` (string): SEO meta title
+  - `meta_description` (string): SEO meta description
+  - `meta_keywords` (string): SEO meta keywords
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the created category object
+
+---
+
+### updateCategory
+
+Updates an existing category.
+
+```javascript
+import { updateCategory } from '@evershop/evershop/src/modules/catalog/services';
+
+const category = await updateCategory(
+  'category-uuid',
+  {
+    name: 'Updated Electronics',
+    description: 'New description'
+  },
+  {}
+);
+```
+
+**Parameters:**
+- `uuid` (string): Category UUID
+- `data` (CategoryData): Category data to update
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the updated category object
+
+---
+
+### deleteCategory
+
+Deletes a category by UUID.
+
+```javascript
+import { deleteCategory } from '@evershop/evershop/src/modules/catalog/services';
+
+await deleteCategory('category-uuid', {});
+```
+
+**Parameters:**
+- `uuid` (string): Category UUID
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the deleted category data
+
+---
+
+## Collection Services
+
+### createCollection
+
+Creates a new product collection.
+
+```javascript
+import { createCollection } from '@evershop/evershop/src/modules/catalog/services';
+
+const collection = await createCollection({
+  name: 'Summer Sale',
+  description: 'Summer sale items',
+  code: 'summer-2024',
+  status: 1
+}, {});
+```
+
+**Parameters:**
+- `data` (CollectionData): Collection data object
+  - `name` (string, required): Collection name
+  - `description` (string, required): Collection description
+  - `code` (string, required): Unique collection code
+  - `status` (number): Collection status
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the created collection object
+
+---
+
+### updateCollection
+
+Updates an existing collection.
+
+```javascript
+import { updateCollection } from '@evershop/evershop/src/modules/catalog/services';
+
+const collection = await updateCollection(
+  'collection-uuid',
+  {
+    name: 'Updated Summer Sale',
+    status: 0
+  },
+  {}
+);
+```
+
+**Parameters:**
+- `uuid` (string): Collection UUID
+- `data` (CollectionData): Collection data to update
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the updated collection object
+
+---
+
+### deleteCollection
+
+Deletes a collection by UUID.
+
+```javascript
+import { deleteCollection } from '@evershop/evershop/src/modules/catalog/services';
+
+await deleteCollection('collection-uuid', {});
+```
+
+**Parameters:**
+- `uuid` (string): Collection UUID
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the deleted collection data
+
+---
+
+## Attribute Services
+
+### createAttribute
+
+Creates a new product attribute with groups and options.
+
+```javascript
+import { createAttribute } from '@evershop/evershop/src/modules/catalog/services';
+
+const attribute = await createAttribute({
+  attribute_code: 'color',
+  attribute_name: 'Color',
+  type: 'select',
+  is_required: false,
+  display_on_frontend: true,
+  groups: [1, 2],
+  options: [
+    { option_text: 'Red' },
+    { option_text: 'Blue' },
+    { option_text: 'Green' }
+  ]
+}, {});
+```
+
+**Parameters:**
+- `data` (AttributeData): Attribute data object
+  - `attribute_code` (string, required): Unique attribute code
+  - `attribute_name` (string, required): Display name
+  - `type` (string, required): Attribute type (text, textarea, select, multiselect)
+  - `is_required` (boolean, required): Required field flag
+  - `display_on_frontend` (boolean): Show on frontend
+  - `groups` (array, required): Attribute group IDs
+  - `options` (array): Options for select/multiselect types
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the created attribute object
+
+---
+
+### updateAttribute
+
+Updates an existing product attribute.
+
+```javascript
+import { updateAttribute } from '@evershop/evershop/src/modules/catalog/services';
+
+const attribute = await updateAttribute(
+  'attribute-uuid',
+  {
+    attribute_name: 'Product Color',
+    display_on_frontend: false
+  },
+  {}
+);
+```
+
+**Parameters:**
+- `uuid` (string): Attribute UUID
+- `data` (AttributeData): Attribute data to update
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the updated attribute object
+
+---
+
+### deleteAttribute
+
+Deletes a product attribute by UUID.
+
+```javascript
+import { deleteAttribute } from '@evershop/evershop/src/modules/catalog/services';
+
+await deleteAttribute('attribute-uuid', {});
+```
+
+**Parameters:**
+- `uuid` (string): Attribute UUID
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the deleted attribute data
+
+---
+
+## Query Builder Services
+
+### getProductsBaseQuery
+
+Returns the base query builder for products.
+
+```javascript
+import { getProductsBaseQuery } from '@evershop/evershop/src/modules/catalog/services';
+
+const query = getProductsBaseQuery();
+const products = await query
+  .where('status', '=', 1)
+  .execute();
+```
+
+**Returns:** Query builder instance for products table
+
+---
+
+### getCategoriesBaseQuery
+
+Returns the base query builder for categories.
+
+```javascript
+import { getCategoriesBaseQuery } from '@evershop/evershop/src/modules/catalog/services';
+
+const query = getCategoriesBaseQuery();
+const categories = await query
+  .where('status', '=', 1)
+  .execute();
+```
+
+**Returns:** Query builder instance for categories table
+
+---
+
+### getCollectionsBaseQuery
+
+Returns the base query builder for collections.
+
+```javascript
+import { getCollectionsBaseQuery } from '@evershop/evershop/src/modules/catalog/services';
+
+const query = getCollectionsBaseQuery();
+const collections = await query.execute();
+```
+
+**Returns:** Query builder instance for collections table
+
+---
+
+### getProductsByCategoryBaseQuery
+
+Returns the base query builder for products filtered by category.
+
+```javascript
+import { getProductsByCategoryBaseQuery } from '@evershop/evershop/src/modules/catalog/services';
+
+const query = getProductsByCategoryBaseQuery();
+const products = await query
+  .where('category_id', '=', 1)
+  .execute();
+```
+
+**Returns:** Query builder instance for products by category
+
+---
+
+### getProductsByCollectionBaseQuery
+
+Returns the base query builder for products filtered by collection.
+
+```javascript
+import { getProductsByCollectionBaseQuery } from '@evershop/evershop/src/modules/catalog/services';
+
+const query = getProductsByCollectionBaseQuery();
+const products = await query
+  .where('collection_id', '=', 1)
+  .execute();
+```
+
+**Returns:** Query builder instance for products by collection

@@ -1,0 +1,420 @@
+---
+title: CMS Module
+description: Content management system for pages, menus, and widgets
+---
+
+The CMS (Content Management System) module provides content management capabilities for creating and managing pages, menus, and widgets in EverShop.
+
+## Overview
+
+The CMS module provides:
+
+- **Pages** - Create and manage content pages
+- **Menus** - Build navigation menus
+- **Widgets** - Content widgets for pages
+- **File Management** - Upload and manage media files
+- **SEO Management** - Meta tags and URL keys
+
+## Module Structure
+
+```
+cms/
+├── api/                    # CMS API endpoints
+├── graphql/                # GraphQL types and resolvers
+│   ├── types/
+│   │   ├── CmsPage/       # Page types
+│   │   ├── Menu/          # Menu types
+│   │   └── Widget/        # Widget types
+├── migration/             # Database migrations
+├── pages/                 # CMS admin pages
+├── services/              # CMS services
+└── bootstrap.js           # Module initialization
+```
+
+## GraphQL Types
+
+### CmsPage Type
+
+```graphql
+type CmsPage {
+  cmsPageId: Int!
+  uuid: String!
+  name: String!
+  content: String
+  shortContent: String
+  status: Int!
+  urlKey: String!
+  metaTitle: String
+  metaDescription: String
+  metaKeywords: String
+  layout: String
+  createdAt: String!
+  updatedAt: String!
+  url: String
+}
+```
+
+### Menu Type
+
+```graphql
+type Menu {
+  menuId: Int!
+  name: String!
+  items: [MenuItem]
+}
+
+type MenuItem {
+  menuItemId: Int!
+  name: String!
+  url: String!
+  position: Int!
+  parentId: ID
+}
+```
+
+## Content Pages
+
+### Creating Pages
+
+Pages can be created through the admin panel or API:
+
+```javascript
+// POST /api/cms/pages
+await fetch('/api/cms/pages', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: 'About Us',
+    urlKey: 'about-us',
+    content: '<h1>About Our Store</h1><p>...</p>',
+    shortContent: 'Learn about our company',
+    status: 1, // Published
+    metaTitle: 'About Us - Our Story',
+    metaDescription: 'Learn about our company history',
+    layout: 'full_width'
+  })
+});
+```
+
+### Page Layouts
+
+EverShop supports multiple page layouts:
+
+- **full_width** - Full width content
+- **one_column** - Single column with sidebar
+- **two_columns** - Two column layout
+
+Layouts can be customized in your theme.
+
+### Page Status
+
+- **1** - Published (visible on storefront)
+- **0** - Draft (not visible)
+
+### URL Keys
+
+Each page has a unique URL key:
+
+- Must be URL-friendly (lowercase, hyphens)
+- Automatically validated for uniqueness
+- Used to generate page URLs: `/page/about-us`
+
+## Content Editor
+
+The CMS uses a rich text editor for content creation:
+
+- **WYSIWYG Editor** - Visual content editing
+- **HTML Mode** - Direct HTML editing
+- **Media Insert** - Insert images and files
+- **Formatting Tools** - Text formatting, lists, links
+
+## Menus
+
+### Menu System
+
+Menus provide navigation:
+
+- **Header Menu** - Main navigation
+- **Footer Menu** - Footer links
+- **Custom Menus** - Additional menus
+
+### Menu Items
+
+Menu items can link to:
+
+- CMS pages
+- Category pages
+- Custom URLs
+- External links
+
+### Hierarchical Menus
+
+Menus support multiple levels:
+
+```typescript
+// Menu structure
+Home
+Shop
+  ├── Men's Clothing
+  ├── Women's Clothing
+  └── Accessories
+About Us
+Contact
+```
+
+## Widgets
+
+Widgets are reusable content blocks:
+
+### Widget Types
+
+- **Text Widget** - Rich text content
+- **HTML Widget** - Custom HTML
+- **Banner Widget** - Image banners
+- **Product Widget** - Featured products
+- **Custom Widgets** - Extension-defined widgets
+
+### Widget Placement
+
+Widgets can be placed in:
+
+- Specific pages
+- All pages
+- Page areas (header, footer, sidebar)
+
+See [Widgets API](/api/core/widgets) for details.
+
+## File Management
+
+The CMS module includes file management:
+
+### Uploading Files
+
+```javascript
+// POST /api/cms/files
+const formData = new FormData();
+formData.append('file', fileInput.files[0]);
+
+await fetch('/api/cms/files', {
+  method: 'POST',
+  body: formData
+});
+```
+
+### File Browser
+
+The file browser provides:
+
+- File upload
+- Folder creation
+- File organization
+- Image preview
+- File deletion
+
+### Supported File Types
+
+- **Images**: jpg, jpeg, png, gif, webp, svg
+- **Documents**: pdf
+- **Other**: Configurable in settings
+
+## CMS Services
+
+The CMS module exports these services:
+
+```typescript
+import { 
+  createPage,
+  updatePage,
+  deletePage,
+  uploadFile,
+  createFolder,
+  deleteFile
+} from '@evershop/evershop/cms/services';
+
+// Create page
+const page = await createPage({
+  name: 'Privacy Policy',
+  urlKey: 'privacy-policy',
+  content: '<p>Privacy policy content...</p>',
+  status: 1
+});
+
+// Update page
+await updatePage(pageId, {
+  content: '<p>Updated content...</p>'
+});
+
+// Upload file
+const file = await uploadFile(fileBuffer, {
+  name: 'banner.jpg',
+  path: '/images'
+});
+```
+
+## Database Schema
+
+The CMS module defines:
+
+- `cms_page` - Content pages
+- `cms_page_description` - Page translations (if enabled)
+- `url_rewrite` - SEO-friendly URLs
+
+## GraphQL Queries
+
+### Get CMS Page
+
+```graphql
+query {
+  cmsPage(id: "about-us") {
+    name
+    content
+    metaTitle
+    metaDescription
+    url
+  }
+}
+```
+
+### Get Current CMS Page
+
+```graphql
+query {
+  currentCmsPage {
+    name
+    content
+    layout
+  }
+}
+```
+
+### List CMS Pages (Admin)
+
+```graphql
+query {
+  cmsPages(filters: [{ key: "status", operation: eq, value: "1" }]) {
+    items {
+      cmsPageId
+      name
+      urlKey
+      status
+    }
+    total
+  }
+}
+```
+
+## SEO Features
+
+### Meta Tags
+
+Each page supports:
+
+- **Meta Title** - Page title tag
+- **Meta Description** - Page description
+- **Meta Keywords** - Search keywords
+
+### URL Rewrites
+
+SEO-friendly URLs:
+
+- `/page/about-us` instead of `/page?id=123`
+- Automatically generated from URL key
+- Stored in `url_rewrite` table
+
+### Open Graph Tags
+
+Pages support Open Graph for social sharing:
+
+```html
+<meta property="og:title" content="..." />
+<meta property="og:description" content="..." />
+<meta property="og:image" content="..." />
+```
+
+## Admin CMS Management
+
+Administrators can:
+
+- Create and edit pages
+- Manage page layouts
+- Upload and organize files
+- Configure menus
+- Manage widgets
+- Set page status (publish/draft)
+- Preview pages before publishing
+
+## Best Practices
+
+<Note>
+  **URL Keys**: Use descriptive, keyword-rich URL keys for better SEO. Avoid changing URL keys after publishing to maintain link integrity.
+</Note>
+
+<Warning>
+  **Content Backup**: Always backup important content before making major changes. Consider version control for critical pages.
+</Warning>
+
+<Tip>
+  **Image Optimization**: Optimize images before uploading. Large images can slow down page load times.
+</Tip>
+
+## Common Use Cases
+
+### Static Pages
+
+Create common pages:
+
+- About Us
+- Privacy Policy
+- Terms of Service
+- Shipping Information
+- Return Policy
+- FAQ
+- Contact Us
+
+### Landing Pages
+
+Create marketing landing pages:
+
+- Seasonal promotions
+- Product launches
+- Special campaigns
+- Brand stories
+
+### Custom Layouts
+
+Use custom layouts for:
+
+- Homepage content blocks
+- Category landing pages
+- Brand pages
+- Editorial content
+
+## API Endpoints
+
+Key CMS API endpoints:
+
+- `GET /api/cms/pages` - List pages (admin)
+- `GET /api/cms/pages/:id` - Get page
+- `POST /api/cms/pages` - Create page
+- `PATCH /api/cms/pages/:id` - Update page
+- `DELETE /api/cms/pages/:id` - Delete page
+- `POST /api/cms/files` - Upload file
+- `GET /api/cms/files/browse` - Browse files
+- `DELETE /api/cms/files/:path` - Delete file
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="CMS Services API" icon="code" href="/api/services/cms">
+    Learn about the CMS services API
+  </Card>
+  <Card title="Widgets API" icon="puzzle-piece" href="/api/core/widgets">
+    Widget system documentation
+  </Card>
+  <Card title="Components" icon="layer-group" href="/components/overview">
+    Creating custom CMS components
+  </Card>
+  <Card title="GraphQL Queries" icon="diagram-project" href="/api/graphql/queries">
+    CMS GraphQL queries
+  </Card>
+</CardGroup>

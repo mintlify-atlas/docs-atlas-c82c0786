@@ -1,0 +1,396 @@
+---
+title: "Customer Services"
+description: "Customer module services for customer and address management"
+---
+
+The Customer module provides services for managing customer accounts, addresses, and authentication.
+
+## Customer Management
+
+### createCustomer
+
+Creates a new customer account.
+
+```javascript
+import { createCustomer } from '@evershop/evershop/src/modules/customer/services';
+
+try {
+  const customer = await createCustomer({
+    email: 'customer@example.com',
+    password: 'SecurePass123!',
+    full_name: 'John Doe',
+    group_id: 1,
+    status: 1
+  }, {});
+  
+  console.log('Customer created:', customer.customer_id);
+  console.log('Customer UUID:', customer.uuid);
+} catch (error) {
+  console.error('Failed to create customer:', error.message);
+}
+```
+
+**Parameters:**
+- `data` (CustomerData): Customer data object
+  - `email` (string, required): Customer email address
+  - `password` (string, required): Customer password
+  - `full_name` (string, required): Customer full name
+  - `group_id` (number, optional): Customer group ID (defaults to 1)
+  - `status` (number, optional): Account status (0=disabled, 1=enabled, defaults to 1)
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to created customer object (password field removed)
+
+**Behavior:**
+- Validates required fields and password strength
+- Checks for duplicate email addresses
+- Hashes password before storage
+- Emits `customer_registered` event if status is 1
+- Throws error if email already exists or validation fails
+
+---
+
+### updateCustomer
+
+Updates an existing customer account.
+
+```javascript
+import { updateCustomer } from '@evershop/evershop/src/modules/customer/services';
+
+const customer = await updateCustomer(
+  'customer-uuid',
+  {
+    full_name: 'John Updated Doe',
+    status: 1
+  },
+  {}
+);
+```
+
+**Parameters:**
+- `uuid` (string): Customer UUID
+- `data` (CustomerData): Customer data to update
+  - `email` (string): New email address
+  - `full_name` (string): Updated full name
+  - `group_id` (number): Customer group ID
+  - `status` (number): Account status
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to updated customer object
+
+---
+
+### deleteCustomer
+
+Deletes a customer account.
+
+```javascript
+import { deleteCustomer } from '@evershop/evershop/src/modules/customer/services';
+
+await deleteCustomer('customer-uuid', {});
+```
+
+**Parameters:**
+- `uuid` (string): Customer UUID
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to deleted customer data
+
+**Note:** This permanently deletes the customer and related data. Consider using status updates for soft deletion.
+
+---
+
+### updatePassword
+
+Updates a customer's password.
+
+```javascript
+import { updatePassword } from '@evershop/evershop/src/modules/customer/services';
+
+await updatePassword(
+  'customer-uuid',
+  'CurrentPass123!',
+  'NewSecurePass456!'
+);
+```
+
+**Parameters:**
+- `uuid` (string): Customer UUID
+- `currentPassword` (string): Current password for verification
+- `newPassword` (string): New password
+
+**Returns:** Promise resolving when password is updated
+
+**Validation:**
+- Verifies current password is correct
+- Validates new password strength
+- Hashes new password before storage
+
+---
+
+## Address Management
+
+### createCustomerAddress
+
+Creates a new address for a customer.
+
+```javascript
+import { createCustomerAddress } from '@evershop/evershop/src/modules/customer/services';
+
+const address = await createCustomerAddress(
+  'customer-uuid',
+  {
+    full_name: 'John Doe',
+    telephone: '555-1234',
+    address_1: '123 Main St',
+    address_2: 'Apt 4B',
+    city: 'New York',
+    province: 'NY',
+    postcode: '10001',
+    country: 'US',
+    is_default: true
+  },
+  {}
+);
+```
+
+**Parameters:**
+- `customerUUID` (string): Customer UUID
+- `address` (Address): Address data object
+  - `full_name` (string): Recipient name
+  - `telephone` (string): Phone number
+  - `address_1` (string): Address line 1
+  - `address_2` (string, optional): Address line 2
+  - `city` (string): City
+  - `province` (string): State/Province code
+  - `postcode` (string): Postal/ZIP code
+  - `country` (string): Country code (ISO 2-letter)
+  - `is_default` (boolean): Set as default address
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to created address object
+
+**Behavior:**
+- Validates address data using validation rules
+- Verifies customer exists
+- If `is_default` is true, unsets other default addresses
+- Throws error if customer not found or validation fails
+
+---
+
+### updateCustomerAddress
+
+Updates an existing customer address.
+
+```javascript
+import { updateCustomerAddress } from '@evershop/evershop/src/modules/customer/services';
+
+const address = await updateCustomerAddress(
+  'address-uuid',
+  {
+    address_1: '456 Oak Avenue',
+    city: 'Los Angeles',
+    province: 'CA',
+    postcode: '90001',
+    is_default: true
+  },
+  {}
+);
+```
+
+**Parameters:**
+- `uuid` (string): Address UUID
+- `address` (Address): Address data to update
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to updated address object
+
+---
+
+### deleteCustomerAddress
+
+Deletes a customer address.
+
+```javascript
+import { deleteCustomerAddress } from '@evershop/evershop/src/modules/customer/services';
+
+await deleteCustomerAddress('address-uuid', {});
+```
+
+**Parameters:**
+- `uuid` (string): Address UUID
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to deleted address data
+
+---
+
+### validateAddress
+
+Validates an address object against validation rules.
+
+```javascript
+import { validateAddress } from '@evershop/evershop/src/modules/customer/services';
+
+const result = validateAddress({
+  full_name: 'John Doe',
+  address_1: '123 Main St',
+  city: 'New York',
+  province: 'NY',
+  postcode: '10001',
+  country: 'US'
+});
+
+if (!result.valid) {
+  console.error('Validation errors:', result.errors);
+}
+```
+
+**Parameters:**
+- `address` (object): Address data to validate
+
+**Returns:** Validation result object:
+- `valid` (boolean): Validation status
+- `errors` (array): Array of validation error messages
+
+**Validates:**
+- Required fields are present
+- Field formats are correct
+- Country and province codes are valid
+- Postal code format matches country requirements
+
+---
+
+### addAddressValidationRule
+
+Adds a custom validation rule for addresses.
+
+```javascript
+import { addAddressValidationRule } from '@evershop/evershop/src/modules/customer/services';
+
+addAddressValidationRule('customRule', (address) => {
+  if (!address.address_1.match(/^[0-9]+/)) {
+    return 'Address must start with a number';
+  }
+  return null; // null means validation passed
+});
+```
+
+**Parameters:**
+- `name` (string): Rule name
+- `validator` (function): Validation function that returns error message or null
+
+**Returns:** void
+
+---
+
+## Authentication Services
+
+### sendResetPasswordEmail
+
+Sends a password reset email to a customer.
+
+```javascript
+import { sendResetPasswordEmail } from '@evershop/evershop/src/modules/customer/services';
+
+try {
+  await sendResetPasswordEmail('customer@example.com');
+  console.log('Password reset email sent');
+} catch (error) {
+  console.error('Failed to send email:', error.message);
+}
+```
+
+**Parameters:**
+- `email` (string): Customer email address
+
+**Returns:** Promise resolving when email is sent
+
+**Behavior:**
+- Verifies customer exists with provided email
+- Generates secure reset token
+- Stores token with expiration time
+- Sends email with reset link
+- Throws error if customer not found or email fails
+
+---
+
+## Query Builder Services
+
+### getCustomersBaseQuery
+
+Returns the base query builder for customers.
+
+```javascript
+import { getCustomersBaseQuery } from '@evershop/evershop/src/modules/customer/services';
+
+const query = getCustomersBaseQuery();
+const customers = await query
+  .where('status', '=', 1)
+  .andWhere('group_id', '=', 1)
+  .limit(0, 10)
+  .execute();
+
+customers.forEach(customer => {
+  console.log(customer.email, customer.full_name);
+});
+```
+
+**Returns:** Query builder instance for customers table
+
+**Example - Search by Email:**
+
+```javascript
+const query = getCustomersBaseQuery();
+const customers = await query
+  .where('email', 'LIKE', '%example.com')
+  .execute();
+```
+
+**Example - Filter by Group:**
+
+```javascript
+const query = getCustomersBaseQuery();
+const vipCustomers = await query
+  .where('group_id', '=', 2) // VIP group
+  .andWhere('status', '=', 1)
+  .orderBy('created_at', 'DESC')
+  .execute();
+```
+
+**Available Joins:**
+- Customer group
+- Customer addresses
+- Order history
+
+---
+
+## Data Types
+
+### CustomerData
+
+```typescript
+interface CustomerData {
+  email?: string;
+  full_name?: string;
+  password?: string;
+  group_id?: number;
+  status?: number;
+}
+```
+
+### Address
+
+```typescript
+interface Address {
+  full_name: string;
+  telephone: string;
+  address_1: string;
+  address_2?: string;
+  city: string;
+  province: string;
+  postcode: string;
+  country: string;
+  is_default?: boolean;
+}
+```

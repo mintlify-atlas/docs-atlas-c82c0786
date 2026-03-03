@@ -1,0 +1,692 @@
+---
+title: GraphQL Architecture
+description: Understanding EverShop's GraphQL schema building, type definitions, and resolvers
+---
+
+## Overview
+
+EverShop uses **GraphQL** for data fetching and mutations. The GraphQL schema is built by merging type definitions and resolvers from all modules, providing a flexible and type-safe API.
+
+## GraphQL Module Structure
+
+Each module can contribute GraphQL types and resolvers:
+
+```
+modules/catalog/graphql/
+└── types/
+    ├── Product/
+    │   ├── Product.graphql              # Frontend type definition
+    │   ├── Product.resolvers.js         # Frontend resolvers
+    │   ├── Product.admin.graphql        # Admin-only types
+    │   └── Product.admin.resolvers.js   # Admin-only resolvers
+    └── Category/
+        ├── Category.graphql
+        ├── Category.resolvers.js
+        ├── Category.admin.graphql
+        └── Category.admin.resolvers.js
+```
+
+<Info>
+Files with `.admin.graphql` and `.admin.resolvers.js` are only included in the admin GraphQL schema, not the frontend schema.
+</Info>
+
+## Type Definitions
+
+### Basic Type Definition
+
+```graphql modules/catalog/graphql/types/Product/Product.graphql
+"""
+Represents a product.
+"""
+type Product {
+  productId: Int!
+  uuid: String!
+  name: String!
+  status: Int!
+  sku: String!
+  weight: Weight!
+  noShippingRequired: Boolean
+  taxClass: Int
+  description: JSON
+  urlKey: String
+  metaTitle: String
+  metaDescription: String
+  metaKeywords: String
+  variantGroupId: ID
+  visibility: Int
+  groupId: ID
+  url: String
+}
+
+"""
+Returns a collection of products.
+"""
+type ProductCollection {
+  items: [Product]
+  currentPage: Int!
+  total: Int!
+  currentFilters: [Filter]
+}
+
+"""
+Returns a search.
+"""
+type ProductSearch {
+  products: ProductCollection
+  keyword: String
+}
+
+extend type Query {
+  product(id: ID): Product
+  currentProduct: Product
+  products(filters: [FilterInput]): ProductCollection
+  productSearch: ProductSearch
+}
+```
+
+<Note>
+Use `extend type Query` and `extend type Mutation` to add queries and mutations to the schema. Don't redefine the Query or Mutation types.
+</Note>
+
+### Nested Types and Resolvers
+
+Product has nested fields that are resolved separately:
+
+```
+Product/
+├── Product.graphql                    # Base type
+├── Price/
+│   ├── Price.graphql                 # Price type definition
+│   └── ProductPrice.resolvers.js     # Price field resolver
+├── Inventory/
+│   ├── Inventory.graphql
+│   └── Inventory.resolvers.js
+├── Attribute/
+│   ├── ProductAttribute.graphql
+│   └── ProductAttribute.resolvers.js
+└── Variant/
+    ├── Variant.graphql
+    └── Variant.resolvers.js
+```
+
+## Resolvers
+
+### Field Resolvers
+
+Resolvers map GraphQL fields to data sources:
+
+```javascript modules/catalog/graphql/types/Product/Price/ProductPrice.resolvers.js
+export default {
+  Product: {
+    price: (product) => {
+      const price = parseFloat(product.price);
+      return {
+        regular: price,
+        special: price // TODO: implement special price
+      };
+    }
+  }
+};
+```
+
+### Query Resolvers
+
+Query resolvers fetch data:
+
+```javascript
+export default {
+  Query: {
+    product: async (_, { id }, { pool }) => {
+      const product = await select()
+        .from('product')
+        .where('uuid', '=', id)
+        .load(pool);
+      return product;
+    },
+    
+    products: async (_, { filters }, { pool }) => {
+      const query = select().from('product');
+      
+      // Apply filters
+      if (filters) {
+        filters.forEach(filter => {
+          query.andWhere(filter.key, filter.operation, filter.value);
+        });
+      }
+      
+      const products = await query.execute(pool);
+      return {
+        items: products,
+        total: products.length,
+        currentPage: 1
+      };
+    }
+  }
+};
+```
+
+### Mutation Resolvers
+
+Mutation resolvers modify data:
+
+```javascript
+export default {
+  Mutation: {
+    createProduct: async (_, { product }, { pool }) => {
+      const result = await insert('product')
+        .given(product)
+        .execute(pool);
+      
+      return {
+        success: true,
+        product: result
+      };
+    },
+    
+    updateProduct: async (_, { id, product }, { pool }) => {
+      await update('product')
+        .given(product)
+        .where('uuid', '=', id)
+        .execute(pool);
+      
+      return {
+        success: true
+      };
+    }
+  }
+};
+```
+
+## Schema Building
+
+The GraphQL schema is built during application startup by merging all type definitions and resolvers.
+
+### Building Type Definitions
+
+```javascript packages/evershop/src/modules/graphql/services/buildTypes.js
+import path from 'path';
+import { loadFilesSync } from '@graphql-tools/load-files';
+import { mergeTypeDefs } from '@graphql-tools/merge';
+import { getEnabledExtensions } from '../../../bin/extension/index.js';
+import { CONSTANTS } from '../../../lib/helpers.js';
+
+export function buildTypeDefs(isAdmin = false) {
+  const typeSources = [
+    path.join(CONSTANTS.MODULESPATH, '*/graphql/types/**/*.graphql')
+  ];
+  
+  // Add extension type sources
+  const extensions = getEnabledExtensions();
+  extensions.forEach((extension) => {
+    typeSources.push(
+      path.join(extension.path, 'graphql/types/**/*.graphql')
+    );
+  });
+  
+  // Merge all type definitions
+  const typeDefs = mergeTypeDefs(
+    typeSources.map((source) =>
+      loadFilesSync(source, {
+        ignoredExtensions: isAdmin ? [] : ['.admin.graphql']
+      })
+    )
+  );
+  
+  return typeDefs;
+}
+```
+
+### Building Resolvers
+
+```javascript packages/evershop/src/modules/graphql/services/buildResolvers.js
+import path from 'path';
+import url from 'url';
+import { loadFiles } from '@graphql-tools/load-files';
+import { mergeResolvers } from '@graphql-tools/merge';
+import { getEnabledExtensions } from '../../../bin/extension/index.js';
+import { CONSTANTS } from '../../../lib/helpers.js';
+
+export async function buildResolvers(isAdmin = false) {
+  const typeSources = [
+    path.join(CONSTANTS.MODULESPATH, '*/graphql/types/**/*.resolvers.{js,ts}')
+  ];
+  
+  // Add extension resolver sources
+  const extensions = getEnabledExtensions();
+  extensions.forEach((extension) => {
+    typeSources.push(
+      path.join(extension.path, 'graphql/types/**/*.resolvers.{js,ts}')
+    );
+  });
+  
+  // Merge all resolvers
+  const resolvers = mergeResolvers(
+    await loadFiles(typeSources, {
+      ignoredExtensions: isAdmin
+        ? ['.ts', '.d.ts']
+        : ['.admin.resolvers.js', '.admin.resolvers.ts', '.ts', '.d.ts'],
+      requireMethod: async (path) => {
+        const module = await import(url.pathToFileURL(path));
+        return module;
+      }
+    })
+  );
+  
+  return resolvers;
+}
+```
+
+### Creating the Schema
+
+```javascript packages/evershop/src/modules/graphql/services/buildSchema.js
+import { makeExecutableSchema } from '@graphql-tools/schema';
+import { buildResolvers } from './buildResolvers.js';
+import { buildTypeDefs } from './buildTypes.js';
+
+const resolvers = await buildResolvers(true);
+const schema = makeExecutableSchema({
+  typeDefs: buildTypeDefs(true),
+  resolvers
+});
+
+export async function rebuildSchema() {
+  const resolvers = await buildResolvers(true);
+  const schema = makeExecutableSchema({
+    typeDefs: buildTypeDefs(true),
+    resolvers: resolvers
+  });
+  return schema;
+}
+
+export default schema;
+```
+
+## GraphQL Endpoints
+
+EverShop exposes two GraphQL endpoints:
+
+### Frontend GraphQL
+
+```
+modules/graphql/api/graphql/
+├── route.json
+└── graphql.js
+```
+
+```json route.json
+{
+  "methods": ["POST"],
+  "path": "/api/graphql",
+  "access": "public"
+}
+```
+
+### Admin GraphQL
+
+```
+modules/graphql/api/adminGraphql/
+├── route.json
+└── adminGraphql.js
+```
+
+```json route.json
+{
+  "methods": ["POST"],
+  "path": "/api/admin/graphql"
+}
+```
+
+<Info>
+The admin endpoint includes admin-only types and resolvers. The frontend endpoint excludes them for security.
+</Info>
+
+## Context Object
+
+Resolvers receive a context object with useful utilities:
+
+```javascript
+export default {
+  Query: {
+    products: async (parent, args, context) => {
+      const { pool, user, locale } = context;
+      
+      // pool: Database connection
+      // user: Authenticated user (if any)
+      // locale: Current locale for translations
+      
+      // Your resolver logic
+    }
+  }
+};
+```
+
+## Extending Existing Types
+
+You can extend types defined in other modules:
+
+```graphql extensions/reviews/graphql/types/Product/ProductReviews.graphql
+extend type Product {
+  reviews: [Review]
+  averageRating: Float
+}
+
+type Review {
+  reviewId: Int!
+  rating: Int!
+  comment: String
+  customerName: String
+  createdAt: String
+}
+```
+
+```javascript extensions/reviews/graphql/types/Product/ProductReviews.resolvers.js
+export default {
+  Product: {
+    reviews: async (product, _, { pool }) => {
+      return await select()
+        .from('product_review')
+        .where('product_id', '=', product.productId)
+        .execute(pool);
+    },
+    
+    averageRating: async (product, _, { pool }) => {
+      const result = await select('AVG(rating) as avg')
+        .from('product_review')
+        .where('product_id', '=', product.productId)
+        .load(pool);
+      
+      return parseFloat(result.avg);
+    }
+  }
+};
+```
+
+## Custom Scalars
+
+Define custom scalar types for special data:
+
+```graphql
+scalar JSON
+scalar Date
+scalar DateTime
+```
+
+```javascript
+import { GraphQLScalarType } from 'graphql';
+
+export default {
+  JSON: new GraphQLScalarType({
+    name: 'JSON',
+    description: 'JSON scalar type',
+    serialize: (value) => value,
+    parseValue: (value) => value,
+    parseLiteral: (ast) => JSON.parse(ast.value)
+  })
+};
+```
+
+## Input Types
+
+Define input types for mutations:
+
+```graphql
+input ProductInput {
+  name: String!
+  sku: String!
+  price: Float!
+  description: String
+  status: Int
+}
+
+input FilterInput {
+  key: String!
+  operation: String!
+  value: String!
+}
+
+extend type Mutation {
+  createProduct(product: ProductInput!): ProductResponse
+  updateProduct(id: ID!, product: ProductInput!): ProductResponse
+}
+
+type ProductResponse {
+  success: Boolean!
+  product: Product
+  message: String
+}
+```
+
+## Error Handling
+
+Handle errors gracefully in resolvers:
+
+```javascript
+export default {
+  Mutation: {
+    createProduct: async (_, { product }, { pool }) => {
+      try {
+        const result = await insert('product')
+          .given(product)
+          .execute(pool);
+        
+        return {
+          success: true,
+          product: result
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: error.message
+        };
+      }
+    }
+  }
+};
+```
+
+<Warning>
+Always handle errors in resolvers. Unhandled errors will expose internal details to clients.
+</Warning>
+
+## DataLoader for N+1 Prevention
+
+Use DataLoader to batch database queries:
+
+```javascript
+import DataLoader from 'dataloader';
+
+const categoryLoader = new DataLoader(async (categoryIds) => {
+  const categories = await select()
+    .from('category')
+    .where('category_id', 'IN', categoryIds)
+    .execute(pool);
+  
+  return categoryIds.map(id =>
+    categories.find(cat => cat.category_id === id)
+  );
+});
+
+export default {
+  Product: {
+    category: (product) => {
+      return categoryLoader.load(product.category_id);
+    }
+  }
+};
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Organize by feature">
+    Group related types together. For example, all Product-related types should be in `Product/` subdirectories.
+  </Accordion>
+  
+  <Accordion title="Use field resolvers for computed fields">
+    Instead of loading all data upfront, use field resolvers to load data only when requested.
+  </Accordion>
+  
+  <Accordion title="Leverage type extensions">
+    Extend types from other modules rather than modifying them. This keeps modules decoupled.
+  </Accordion>
+  
+  <Accordion title="Document your schema">
+    Use GraphQL comments (triple quotes) to document types and fields. These appear in GraphQL introspection.
+  </Accordion>
+  
+  <Accordion title="Keep resolvers thin">
+    Put business logic in service files, not in resolvers. Resolvers should orchestrate, not implement logic.
+  </Accordion>
+</AccordionGroup>
+
+## Example: Complete Feature
+
+Here's a complete example of adding reviews to products:
+
+### Type Definition
+
+```graphql extensions/reviews/graphql/types/Review/Review.graphql
+type Review {
+  reviewId: Int!
+  productId: Int!
+  rating: Int!
+  title: String
+  comment: String
+  customerName: String
+  status: Int!
+  createdAt: String
+}
+
+input ReviewInput {
+  productId: Int!
+  rating: Int!
+  title: String
+  comment: String
+  customerName: String!
+}
+
+type ReviewResponse {
+  success: Boolean!
+  review: Review
+  message: String
+}
+
+extend type Product {
+  reviews: [Review]
+  averageRating: Float
+  reviewCount: Int
+}
+
+extend type Query {
+  review(id: ID!): Review
+  reviews(productId: Int!): [Review]
+}
+
+extend type Mutation {
+  createReview(review: ReviewInput!): ReviewResponse
+  approveReview(id: ID!): ReviewResponse
+}
+```
+
+### Resolvers
+
+```javascript extensions/reviews/graphql/types/Review/Review.resolvers.js
+import { select, insert, update } from '@evershop/postgres-query-builder';
+
+export default {
+  Query: {
+    review: async (_, { id }, { pool }) => {
+      return await select()
+        .from('product_review')
+        .where('review_id', '=', id)
+        .load(pool);
+    },
+    
+    reviews: async (_, { productId }, { pool }) => {
+      return await select()
+        .from('product_review')
+        .where('product_id', '=', productId)
+        .andWhere('status', '=', 1) // Only approved
+        .execute(pool);
+    }
+  },
+  
+  Mutation: {
+    createReview: async (_, { review }, { pool }) => {
+      try {
+        const result = await insert('product_review')
+          .given({ ...review, status: 0 }) // Pending approval
+          .execute(pool);
+        
+        return {
+          success: true,
+          review: result
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: error.message
+        };
+      }
+    },
+    
+    approveReview: async (_, { id }, { pool }) => {
+      await update('product_review')
+        .given({ status: 1 })
+        .where('review_id', '=', id)
+        .execute(pool);
+      
+      const review = await select()
+        .from('product_review')
+        .where('review_id', '=', id)
+        .load(pool);
+      
+      return {
+        success: true,
+        review
+      };
+    }
+  },
+  
+  Product: {
+    reviews: async (product, _, { pool }) => {
+      return await select()
+        .from('product_review')
+        .where('product_id', '=', product.productId)
+        .andWhere('status', '=', 1)
+        .execute(pool);
+    },
+    
+    averageRating: async (product, _, { pool }) => {
+      const result = await select('AVG(rating) as avg')
+        .from('product_review')
+        .where('product_id', '=', product.productId)
+        .andWhere('status', '=', 1)
+        .load(pool);
+      
+      return result ? parseFloat(result.avg) : 0;
+    },
+    
+    reviewCount: async (product, _, { pool }) => {
+      const result = await select('COUNT(*) as count')
+        .from('product_review')
+        .where('product_id', '=', product.productId)
+        .andWhere('status', '=', 1)
+        .load(pool);
+      
+      return parseInt(result.count);
+    }
+  }
+};
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Middleware" icon="layer-group" href="/core-concepts/middleware">
+    Learn about middleware execution
+  </Card>
+  <Card title="Events" icon="bolt" href="/core-concepts/events">
+    Integrate with the event system
+  </Card>
+</CardGroup>

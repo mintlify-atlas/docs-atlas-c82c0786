@@ -1,0 +1,352 @@
+---
+title: Promotions Module
+description: Discount engine, coupons, and promotional pricing rules
+---
+
+The Promotions module provides a flexible discount and coupon system for creating promotional campaigns in EverShop.
+
+## Overview
+
+The Promotions module provides:
+
+- **Coupon Codes** - Create and manage discount coupons
+- **Cart Discounts** - Apply discounts to shopping cart
+- **Product Discounts** - Special pricing for products
+- **Promotional Rules** - Flexible discount conditions
+- **Discount Types** - Percentage, fixed amount, buy X get Y
+
+## Module Structure
+
+```
+promotion/
+├── api/                    # Promotion API endpoints
+├── graphql/                # GraphQL types
+├── migration/             # Database migrations
+├── pages/                 # Admin promotion pages
+├── services/              # Discount calculation services
+└── bootstrap.js           # Module initialization
+```
+
+## Coupon System
+
+### Coupon Types
+
+EverShop supports various coupon types:
+
+- **Percentage Discount** - X% off
+- **Fixed Amount** - $X off
+- **Free Shipping** - Waive shipping costs
+- **Buy X Get Y** - Purchase-based discounts
+
+### Creating Coupons
+
+Coupons can be created through the admin panel:
+
+```typescript
+// Coupon structure
+{
+  code: 'SUMMER2024',
+  description: 'Summer Sale - 20% Off',
+  discountType: 'percentage', // or 'fixed_amount'
+  discountAmount: 20,
+  maxUses: 100,              // Total usage limit
+  maxUsesPerCustomer: 1,     // Per-customer limit
+  startDate: '2024-06-01',
+  endDate: '2024-08-31',
+  status: 1,                 // Active
+  minimumSubTotal: 50,       // Minimum cart amount
+  targetProducts: [],        // Specific products (empty = all)
+  targetCategories: []       // Specific categories
+}
+```
+
+### Applying Coupons
+
+Customers apply coupons during checkout:
+
+```javascript
+// POST /api/cart/coupon
+await fetch('/api/cart/coupon', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    couponCode: 'SUMMER2024'
+  })
+});
+```
+
+### Coupon Validation
+
+The system validates:
+
+- **Code exists** - Valid coupon code
+- **Active status** - Coupon is enabled
+- **Date range** - Within start/end dates
+- **Usage limits** - Not exceeded
+- **Minimum amount** - Cart meets minimum
+- **Applicable products** - Cart contains valid items
+
+## Discount Calculation
+
+### Cart-Level Discounts
+
+Discounts applied to entire cart:
+
+```typescript
+// Percentage discount
+discountAmount = cartSubtotal * (discountPercent / 100);
+
+// Fixed amount discount
+discountAmount = Math.min(fixedAmount, cartSubtotal);
+
+// Maximum discount cap (if configured)
+discountAmount = Math.min(discountAmount, maxDiscountAmount);
+```
+
+### Item-Level Discounts
+
+Discounts applied to specific items:
+
+```typescript
+// Calculate discount for each eligible item
+items.forEach(item => {
+  if (isEligible(item)) {
+    item.discountAmount = item.price * (discountPercent / 100);
+    item.finalPrice = item.price - item.discountAmount;
+  }
+});
+```
+
+## Promotional Rules
+
+### Condition Types
+
+Promotions can have conditions:
+
+- **Cart subtotal** - Minimum purchase amount
+- **Product quantity** - Minimum quantity
+- **Specific products** - Include/exclude products
+- **Categories** - Apply to category products
+- **Customer groups** - Target specific customer segments
+- **First purchase** - New customer discount
+
+### Rule Combinations
+
+Combine multiple conditions:
+
+```typescript
+// Example: 20% off for new customers on orders over $100
+{
+  discountPercent: 20,
+  conditions: [
+    { type: 'customer_group', value: 'new_customers' },
+    { type: 'cart_subtotal', operator: 'gte', value: 100 }
+  ]
+}
+```
+
+## Discount Priority
+
+When multiple discounts apply:
+
+1. **Item discounts** - Applied first (product-specific)
+2. **Cart discounts** - Applied to subtotal
+3. **Coupon discounts** - Applied last
+4. **Shipping discounts** - Applied to shipping
+
+<Note>
+  By default, only one coupon can be applied per order. This prevents coupon stacking.
+</Note>
+
+## Special Pricing
+
+### Product Special Prices
+
+Products can have special pricing:
+
+```typescript
+// Product pricing
+{
+  regularPrice: 99.99,
+  specialPrice: 79.99,
+  specialPriceFrom: '2024-06-01',
+  specialPriceTo: '2024-06-30'
+}
+```
+
+### Tiered Pricing
+
+Volume-based pricing (if implemented):
+
+```typescript
+// Buy more, save more
+{
+  qty: 1-10,   price: $10.00
+  qty: 11-50,  price: $9.00
+  qty: 51+,    price: $8.00
+}
+```
+
+## Promotion Analytics
+
+Track promotion performance:
+
+- **Total uses** - How many times used
+- **Revenue impact** - Sales generated
+- **Discount amount** - Total discounts given
+- **Average order value** - AOV with promotion
+- **Customer acquisition** - New customers from promotion
+
+## Database Schema
+
+The Promotion module defines:
+
+- `coupon` - Coupon definitions
+- `coupon_usage` - Coupon usage tracking
+
+## Admin Promotion Management
+
+Administrators can:
+
+- Create and manage coupons
+- Set discount rules and conditions
+- Configure usage limits
+- Track coupon performance
+- Disable/expire promotions
+- Generate coupon codes
+- Export coupon usage reports
+
+## Best Practices
+
+<Tip>
+  **Unique Codes**: Use unique, memorable coupon codes that are easy to type. Avoid ambiguous characters (0/O, 1/I).
+</Tip>
+
+<Warning>
+  **Usage Limits**: Always set usage limits to prevent abuse. Monitor high-value coupons closely.
+</Warning>
+
+<Note>
+  **Expiration Dates**: Set clear expiration dates for time-limited promotions. This creates urgency and prevents indefinite discount use.
+</Note>
+
+## Common Promotion Strategies
+
+### Welcome Discount
+
+First-time customer discount:
+
+```typescript
+{
+  code: 'WELCOME10',
+  discountPercent: 10,
+  maxUsesPerCustomer: 1,
+  customerGroup: 'new_customers'
+}
+```
+
+### Cart Abandonment
+
+Recover abandoned carts:
+
+```typescript
+{
+  code: 'COMEBACK15',
+  discountPercent: 15,
+  minimumSubTotal: 75,
+  expiresIn: '7 days'
+}
+```
+
+### Seasonal Sales
+
+Time-limited promotions:
+
+```typescript
+{
+  code: 'BLACKFRIDAY',
+  discountPercent: 30,
+  startDate: '2024-11-29',
+  endDate: '2024-12-01',
+  maxUses: 1000
+}
+```
+
+### Free Shipping
+
+Minimum order for free shipping:
+
+```typescript
+{
+  code: 'FREESHIP',
+  discountType: 'free_shipping',
+  minimumSubTotal: 50
+}
+```
+
+### Bundle Deals
+
+Buy X get Y promotions:
+
+```typescript
+{
+  code: 'BUY2GET1',
+  type: 'buy_x_get_y',
+  buyQty: 2,
+  getQty: 1,
+  applicableProducts: [1, 2, 3]
+}
+```
+
+## Frontend Integration
+
+### Coupon Component
+
+The storefront includes a coupon form:
+
+```typescript
+import { Coupon } from '@evershop/evershop/components/frontStore/checkout/Coupon';
+
+<Coupon />
+```
+
+### Displaying Discounts
+
+Show applied discounts in cart:
+
+```typescript
+{cart.coupon && (
+  <div className="discount">
+    <span>Coupon: {cart.coupon}</span>
+    <span>-${cart.discountAmount.toFixed(2)}</span>
+  </div>
+)}
+```
+
+## API Endpoints
+
+Key promotion API endpoints:
+
+- `POST /api/cart/coupon` - Apply coupon to cart
+- `DELETE /api/cart/coupon` - Remove coupon from cart
+- `GET /api/promotions` - List promotions (admin)
+- `POST /api/promotions` - Create promotion (admin)
+- `PATCH /api/promotions/:id` - Update promotion (admin)
+- `DELETE /api/promotions/:id` - Delete promotion (admin)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Checkout Module" icon="shopping-cart" href="/modules/checkout">
+    How discounts integrate with checkout
+  </Card>
+  <Card title="Catalog Module" icon="box" href="/modules/catalog">
+    Product special pricing
+  </Card>
+  <Card title="Customer Module" icon="user" href="/modules/customer">
+    Customer groups for targeted promotions
+  </Card>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Configure promotion settings
+  </Card>
+</CardGroup>

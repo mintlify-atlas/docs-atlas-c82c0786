@@ -1,0 +1,332 @@
+---
+title: Configuration System
+description: Learn how to configure EverShop using config files and environment variables
+---
+
+EverShop uses a flexible configuration system based on the `config` npm package that allows you to customize your store's behavior through JSON configuration files.
+
+## Configuration Structure
+
+EverShop's configuration is organized into several main sections:
+
+### Shop Configuration
+
+Basic store settings including currency, language, and regional preferences:
+
+```json
+{
+  "shop": {
+    "currency": "USD",
+    "language": "en",
+    "weightUnit": "kg",
+    "timezone": "UTC"
+  }
+}
+```
+
+### System Configuration
+
+Core system settings including database, session, and integrations:
+
+```json
+{
+  "system": {
+    "database": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "evershop",
+      "user": "admin",
+      "password": "123456"
+    },
+    "session": {
+      "maxAge": 86400000,
+      "resave": false,
+      "saveUninitialized": true,
+      "cookieSecret": "your-secret-key",
+      "cookieName": "sid",
+      "adminCookieName": "asid"
+    },
+    "file_storage": "local",
+    "upload_allowed_mime_types": [
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+    ]
+  }
+}
+```
+
+### Catalog Configuration
+
+Product catalog settings:
+
+```json
+{
+  "catalog": {
+    "collectionPageSize": 20,
+    "product": {
+      "image": {
+        "width": 1200,
+        "height": 1200
+      }
+    },
+    "showOutOfStockProduct": false
+  }
+}
+```
+
+### Pricing Configuration
+
+Price calculation and tax settings:
+
+```json
+{
+  "pricing": {
+    "rounding": "round",
+    "precision": 2,
+    "tax": {
+      "rounding": "round",
+      "precision": 2,
+      "round_level": "unit",
+      "price_including_tax": false
+    }
+  }
+}
+```
+
+## Configuration Files Location
+
+Configuration files should be placed in the `config/` directory at the root of your EverShop project. During installation, EverShop generates a default configuration file at:
+
+```
+/config/default.json
+```
+
+## Environment-Specific Configuration
+
+You can create environment-specific configuration files:
+
+- `config/default.json` - Default configuration for all environments
+- `config/production.json` - Production-specific overrides
+- `config/development.json` - Development-specific overrides
+
+<Note>
+Environment-specific files override values from `default.json`. The environment is determined by the `NODE_ENV` environment variable.
+</Note>
+
+## Using Configuration in Code
+
+Access configuration values using the `getConfig` utility:
+
+```typescript
+import { getConfig } from '@evershop/evershop/src/lib/util/getConfig';
+
+// Get a configuration value with a default
+const currency = getConfig('shop.currency', 'USD');
+
+// Access nested configuration
+const sessionMaxAge = getConfig('system.session.maxAge', 86400000);
+
+// Get product image dimensions
+const imageWidth = getConfig('catalog.product.image.width', 1200);
+```
+
+## Database Configuration
+
+<Warning>
+Database credentials should NOT be stored in configuration files. Use environment variables instead for security.
+</Warning>
+
+Database connection is configured via environment variables (see [Environment Variables](/deployment/environment-variables)):
+
+- `DB_HOST` - Database host
+- `DB_PORT` - Database port
+- `DB_NAME` - Database name
+- `DB_USER` - Database user
+- `DB_PASSWORD` - Database password
+- `DB_SSLMODE` - SSL mode for database connection
+
+## Session Configuration
+
+Configure session behavior:
+
+```json
+{
+  "system": {
+    "session": {
+      "maxAge": 86400000,
+      "resave": false,
+      "saveUninitialized": true,
+      "cookieSecret": "keyboard cat",
+      "cookieName": "sid",
+      "adminCookieName": "asid"
+    }
+  }
+}
+```
+
+**Configuration options:**
+
+- `maxAge` - Session cookie max age in milliseconds (default: 24 hours)
+- `resave` - Forces session to be saved even if unmodified
+- `saveUninitialized` - Forces uninitialized sessions to be saved
+- `cookieSecret` - Secret used to sign session cookies
+- `cookieName` - Cookie name for customer sessions
+- `adminCookieName` - Cookie name for admin sessions
+
+## Payment Gateway Configuration
+
+Configure payment methods in the system configuration:
+
+### Stripe
+
+```json
+{
+  "system": {
+    "stripe": {
+      "secretKey": "sk_test_...",
+      "publishableKey": "pk_test_..."
+    }
+  }
+}
+```
+
+### Cash on Delivery
+
+```json
+{
+  "system": {
+    "cod": {
+      "status": 1
+    }
+  }
+}
+```
+
+## Email Notification Configuration
+
+Configure email notifications:
+
+```json
+{
+  "system": {
+    "notification_emails": {
+      "from": "noreply@yourstore.com",
+      "order_confirmation": {
+        "enabled": true,
+        "templatePath": null
+      },
+      "customer_welcome": {
+        "enabled": true,
+        "templatePath": null
+      },
+      "reset_password": {
+        "enabled": true,
+        "templatePath": null
+      }
+    }
+  }
+}
+```
+
+## Theme Configuration
+
+Configure theme-specific settings:
+
+```json
+{
+  "themeConfig": {
+    "logo": {
+      "alt": "Store Logo",
+      "src": "/assets/logo.png",
+      "width": 120,
+      "height": 40
+    },
+    "copyRight": "© 2024 Your Store"
+  }
+}
+```
+
+## Configuration Validation
+
+EverShop validates configuration against a schema. Invalid configuration will throw an error on startup:
+
+```
+Invalid configuration:
+/system/database/port must be number
+```
+
+The validation system uses JSON Schema and provides clear error messages for:
+- Type mismatches
+- Missing required fields
+- Invalid enum values
+- Additional properties not allowed
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="shield">
+    Use environment variables for sensitive data like passwords and API keys
+  </Card>
+  <Card title="Version Control" icon="git">
+    Commit `default.json` but add environment-specific configs to `.gitignore`
+  </Card>
+  <Card title="Validation" icon="check">
+    Test configuration changes in development before deploying to production
+  </Card>
+  <Card title="Documentation" icon="book">
+    Document custom configuration options for your team
+  </Card>
+</CardGroup>
+
+## Common Configuration Patterns
+
+### Multiple Currencies
+
+While the main currency is set in configuration, you can support multiple currencies through extensions.
+
+### Custom File Storage
+
+Change the file storage system:
+
+```json
+{
+  "system": {
+    "file_storage": "s3"
+  }
+}
+```
+
+### Order Management
+
+Configure order statuses and workflows:
+
+```json
+{
+  "oms": {
+    "order": {
+      "reStockAfterCancellation": true
+    }
+  }
+}
+```
+
+## Troubleshooting
+
+### Configuration Not Loading
+
+1. Verify the `config/` directory exists in your project root
+2. Ensure JSON files are valid (use a JSON validator)
+3. Check file permissions
+4. Verify `NODE_ENV` is set correctly
+
+### Reserved Keys
+
+The following keys are reserved and cannot be used in configuration:
+
+```
+get, has, util, getConfigSources, makeHidden, makeImmutable,
+setModuleDefaults, watch, _attachProtoDeep, _cloneDeep, etc.
+```
+
+See `validateConfiguration.js:24-46` for the complete list.

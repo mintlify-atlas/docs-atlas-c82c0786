@@ -1,0 +1,493 @@
+---
+title: 'Admin Components'
+description: 'Pre-built components for building admin panel interfaces'
+---
+
+Admin components provide the building blocks for creating powerful admin interfaces in EverShop.
+
+## Layout Components
+
+### PageHeading
+
+Displays page title with optional back button and action areas.
+
+**Location**: `packages/evershop/src/components/admin/PageHeading.tsx`
+
+```tsx
+import { PageHeading } from '@components/admin/PageHeading.js';
+
+function MyAdminPage() {
+  return (
+    <PageHeading
+      heading="Edit Product"
+      backUrl="/admin/products"
+    />
+  );
+}
+```
+
+**Props:**
+
+<ParamField path="heading" type="string" required>
+  Page title to display
+</ParamField>
+
+<ParamField path="backUrl" type="string">
+  URL for back button navigation
+</ParamField>
+
+**Areas:**
+
+- `pageHeadingLeft`: Components on the left side (back button, title)
+- `pageHeadingRight`: Components on the right side (action buttons)
+
+**Example with Actions:**
+
+```tsx
+import Area from '@components/common/Area.js';
+import { Button } from '@components/common/ui/Button.js';
+
+<PageHeading heading="Products" />
+<Area id="pageHeadingRight" coreComponents={[
+  {
+    component: { default: () => (
+      <Button variant="default">Add Product</Button>
+    )},
+    sortOrder: 10
+  }
+]} />
+```
+
+### NavigationItem
+
+Sidebar navigation menu items.
+
+**Location**: `packages/evershop/src/components/admin/NavigationItem.tsx`
+
+```tsx
+import { NavigationItem } from '@components/admin/NavigationItem.js';
+
+<NavigationItem
+  url="/admin/products"
+  icon={<ProductIcon />}
+  title="Products"
+/>
+```
+
+### NavigationItemGroup
+
+Groups related navigation items together.
+
+**Location**: `packages/evershop/src/components/admin/NavigationItemGroup.tsx`
+
+```tsx
+import { NavigationItemGroup } from '@components/admin/NavigationItemGroup.js';
+
+<NavigationItemGroup title="Catalog">
+  <NavigationItem url="/admin/products" title="Products" />
+  <NavigationItem url="/admin/categories" title="Categories" />
+</NavigationItemGroup>
+```
+
+## Data Display Components
+
+### Status
+
+Displays status badges for active/inactive states.
+
+**Location**: `packages/evershop/src/components/admin/Status.tsx`
+
+```tsx
+import { Status } from '@components/admin/Status.js';
+
+<Status status={1} /> {/* Active */}
+<Status status={0} /> {/* Inactive */}
+```
+
+**Props:**
+
+<ParamField path="status" type="number" required>
+  Status value: `1` for active (green badge), `0` for inactive (red badge)
+</ParamField>
+
+**Output:**
+
+- Status `1`: Green "Active" badge
+- Status `0`: Red "Inactive" badge
+
+### Thumbnail
+
+Displays thumbnail images in grid views.
+
+**Location**: `packages/evershop/src/components/admin/grid/Thumbnail.tsx`
+
+```tsx
+import { Thumbnail } from '@components/admin/grid/Thumbnail.js';
+
+<Thumbnail
+  src="/products/image.jpg"
+  alt="Product thumbnail"
+  width={60}
+  height={60}
+/>
+```
+
+### GridPagination
+
+Pagination controls for data grids.
+
+**Location**: `packages/evershop/src/components/admin/grid/GridPagination.tsx`
+
+```tsx
+import { GridPagination } from '@components/admin/grid/GridPagination.js';
+
+<GridPagination
+  currentPage={1}
+  totalPages={10}
+  onPageChange={(page) => navigate(`?page=${page}`)}
+/>
+```
+
+## Data Input Components
+
+### ImageUploader
+
+Powerful image upload component with drag-and-drop, multiple images, and image sorting.
+
+**Location**: `packages/evershop/src/components/admin/ImageUploader.tsx`
+
+```tsx
+import { ImageUploader } from '@components/admin/ImageUploader.js';
+import { useState } from 'react';
+
+function ProductForm() {
+  const [images, setImages] = useState([
+    {
+      uuid: '123',
+      url: '/uploads/image1.jpg',
+      path: '/uploads/image1.jpg'
+    }
+  ]);
+
+  return (
+    <ImageUploader
+      currentImages={images}
+      isMultiple={true}
+      allowDelete={true}
+      allowSwap={true}
+      targetPath="products"
+      onUpload={(newImages) => {
+        console.log('Uploaded:', newImages);
+        setImages([...images, ...newImages]);
+      }}
+      onDelete={(image) => {
+        console.log('Deleted:', image);
+        setImages(images.filter(img => img.uuid !== image.uuid));
+      }}
+      onSortEnd={(oldIndex, newIndex) => {
+        console.log('Reordered:', oldIndex, newIndex);
+      }}
+    />
+  );
+}
+```
+
+**Props:**
+
+<ParamField path="currentImages" type="Image[]" default="[]">
+  Array of existing images. Each image has `uuid`, `url`, and optional `path`
+</ParamField>
+
+<ParamField path="isMultiple" type="boolean" default="true">
+  Allow multiple images. When `false`, shows single image mode
+</ParamField>
+
+<ParamField path="allowDelete" type="boolean" default="true">
+  Show delete button on images
+</ParamField>
+
+<ParamField path="allowSwap" type="boolean" default="true">
+  Enable drag-and-drop reordering of images
+</ParamField>
+
+<ParamField path="targetPath" type="string">
+  Upload directory path (e.g., "products", "categories")
+</ParamField>
+
+<ParamField path="onUpload" type="(images: Image[]) => void | Promise<void>">
+  Callback when images are uploaded
+</ParamField>
+
+<ParamField path="onDelete" type="(image: Image) => void | Promise<void>">
+  Callback when an image is deleted
+</ParamField>
+
+<ParamField path="onSortEnd" type="(oldIndex: number, newIndex: number) => void">
+  Callback when images are reordered
+</ParamField>
+
+**Single Image Mode:**
+
+```tsx
+<ImageUploader
+  currentImages={productImage ? [productImage] : []}
+  isMultiple={false}
+  onUpload={(images) => setProductImage(images[0])}
+/>
+```
+
+### CategorySelector
+
+Select categories with search and autocomplete.
+
+**Location**: `packages/evershop/src/components/admin/CategorySelector.tsx`
+
+```tsx
+import { CategorySelector } from '@components/admin/CategorySelector.js';
+
+<CategorySelector
+  name="categoryId"
+  label="Category"
+  selectedCategory={selectedCategory}
+  onSelect={(category) => setSelectedCategory(category)}
+/>
+```
+
+### ProductSelector
+
+Select products with search functionality.
+
+**Location**: `packages/evershop/src/components/admin/ProductSelector.tsx`
+
+```tsx
+import { ProductSelector } from '@components/admin/ProductSelector.js';
+
+<ProductSelector
+  name="relatedProducts"
+  label="Related Products"
+  selectedProducts={relatedProducts}
+  onSelect={(products) => setRelatedProducts(products)}
+  multiple={true}
+/>
+```
+
+### CollectionSelector
+
+Select product collections.
+
+**Location**: `packages/evershop/src/components/admin/CollectionSelector.tsx`
+
+```tsx
+import { CollectionSelector } from '@components/admin/CollectionSelector.js';
+
+<CollectionSelector
+  name="collectionId"
+  label="Collection"
+  selectedCollection={collection}
+  onSelect={(collection) => setCollection(collection)}
+/>
+```
+
+### AttributeGroupSelector
+
+Select attribute groups for product attributes.
+
+**Location**: `packages/evershop/src/components/admin/AttributeGroupSelector.tsx`
+
+```tsx
+import { AttributeGroupSelector } from '@components/admin/AttributeGroupSelector.js';
+
+<AttributeGroupSelector
+  name="attributeGroupId"
+  label="Attribute Group"
+  selectedGroup={attributeGroup}
+  onSelect={(group) => setAttributeGroup(group)}
+/>
+```
+
+### FileBrowser
+
+Browse and select files from the media library.
+
+**Location**: `packages/evershop/src/components/admin/FileBrowser.tsx`
+
+```tsx
+import { FileBrowser } from '@components/admin/FileBrowser.js';
+
+<FileBrowser
+  onSelect={(file) => {
+    console.log('Selected file:', file);
+    setSelectedFile(file);
+  }}
+  allowedTypes={['image/jpeg', 'image/png', 'image/webp']}
+  multiple={false}
+/>
+```
+
+## Form Components
+
+### FormButtons
+
+Standardized form action buttons (Save, Cancel).
+
+**Location**: `packages/evershop/src/components/admin/FormButtons.tsx`
+
+```tsx
+import { FormButtons } from '@components/admin/FormButtons.js';
+
+<FormButtons
+  saveText="Save Product"
+  cancelUrl="/admin/products"
+  isLoading={isSubmitting}
+/>
+```
+
+## Utility Components
+
+### Spinner
+
+Loading spinner for async operations.
+
+**Location**: `packages/evershop/src/components/admin/Spinner.jsx`
+
+```tsx
+import Spinner from '@components/admin/Spinner.js';
+
+<Spinner width={40} height={40} />
+```
+
+**Props:**
+
+<ParamField path="width" type="number" default="25">
+  Spinner width in pixels
+</ParamField>
+
+<ParamField path="height" type="number" default="25">
+  Spinner height in pixels
+</ParamField>
+
+### ProductListSkeleton
+
+Skeleton loader for product lists.
+
+**Location**: `packages/evershop/src/components/admin/ProductListSkeleton.tsx`
+
+```tsx
+import { ProductListSkeleton } from '@components/admin/ProductListSkeleton.js';
+
+<ProductListSkeleton count={5} />
+```
+
+### ImageUploaderSkeleton
+
+Skeleton loader for image uploader.
+
+**Location**: `packages/evershop/src/components/admin/ImageUploaderSkeleton.tsx`
+
+```tsx
+import { ImageUploaderSkeleton } from '@components/admin/ImageUploaderSkeleton.js';
+
+<ImageUploaderSkeleton itemCount={5} />
+```
+
+## Grid Components
+
+### Sortable Header
+
+Sortable column header for data tables.
+
+**Location**: `packages/evershop/src/components/admin/grid/header/Sortable.tsx`
+
+```tsx
+import { Sortable } from '@components/admin/grid/header/Sortable.js';
+
+<Sortable
+  column="name"
+  label="Product Name"
+  currentSort={{ column: 'name', direction: 'asc' }}
+  onSort={(column, direction) => handleSort(column, direction)}
+/>
+```
+
+## Complete Example
+
+Here's a complete admin page example:
+
+```tsx
+import { PageHeading } from '@components/admin/PageHeading.js';
+import { Form } from '@components/common/form/Form.js';
+import { InputField } from '@components/common/form/InputField.js';
+import { SelectField } from '@components/common/form/SelectField.js';
+import { ImageUploader } from '@components/admin/ImageUploader.js';
+import { CategorySelector } from '@components/admin/CategorySelector.js';
+import { FormButtons } from '@components/admin/FormButtons.js';
+import { useState } from 'react';
+
+export default function ProductEditPage() {
+  const [images, setImages] = useState([]);
+  const [category, setCategory] = useState(null);
+
+  return (
+    <div>
+      <PageHeading
+        heading="Edit Product"
+        backUrl="/admin/products"
+      />
+
+      <Form
+        action="/api/products/save"
+        method="POST"
+        onSuccess={() => {
+          window.location.href = '/admin/products';
+        }}
+      >
+        <InputField
+          name="name"
+          label="Product Name"
+          required
+          placeholder="Enter product name"
+        />
+
+        <CategorySelector
+          name="categoryId"
+          label="Category"
+          selectedCategory={category}
+          onSelect={setCategory}
+        />
+
+        <ImageUploader
+          currentImages={images}
+          isMultiple={true}
+          onUpload={(newImages) => setImages([...images, ...newImages])}
+          onDelete={(image) => setImages(images.filter(i => i.uuid !== image.uuid))}
+        />
+
+        <SelectField
+          name="status"
+          label="Status"
+          options={[
+            { value: '1', label: 'Active' },
+            { value: '0', label: 'Inactive' }
+          ]}
+        />
+
+        <FormButtons
+          saveText="Save Product"
+          cancelUrl="/admin/products"
+        />
+      </Form>
+    </div>
+  );
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Common Components" icon="puzzle-piece" href="/components/overview">
+    Explore shared components
+  </Card>
+  <Card title="Creating Components" icon="code" href="/components/creating-components">
+    Learn to build custom components
+  </Card>
+</CardGroup>

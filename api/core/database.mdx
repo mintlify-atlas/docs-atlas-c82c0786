@@ -1,0 +1,477 @@
+---
+title: Database API
+description: PostgreSQL query builder and connection management for EverShop
+---
+
+## Overview
+
+EverShop provides a powerful query builder API for PostgreSQL, built on top of the `pg` driver. The API offers a fluent interface for constructing and executing SQL queries with type safety and connection management.
+
+## Database Connection
+
+### pool
+
+Global PostgreSQL connection pool instance.
+
+```typescript
+import { pool } from '@evershop/evershop/src/lib/postgres/connection';
+
+const result = await select().from('product').execute(pool);
+```
+
+**Location:** `packages/evershop/src/lib/postgres/connection.ts:58`
+
+#### Configuration
+
+Connection settings are configured via environment variables:
+
+```bash
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=evershop
+DB_SSLMODE=disable  # disable, require, prefer, verify-ca, verify-full, no-verify
+```
+
+#### SSL Configuration
+
+For SSL connections:
+
+```bash
+DB_SSLMODE=verify-full
+DB_SSLROOTCERT=/path/to/ca.crt
+DB_SSLCERT=/path/to/client.crt
+DB_SSLKEY=/path/to/client.key
+```
+
+### getConnection()
+
+Get a dedicated connection from the pool for transactions.
+
+```typescript
+import { getConnection, pool } from '@evershop/evershop/src/lib/postgres/connection';
+
+const connection = await getConnection();
+// Use connection...
+connection.release();
+```
+
+**Location:** `packages/evershop/src/lib/postgres/connection.ts:65`
+
+## Query Builder
+
+### select()
+
+Create a SELECT query.
+
+```typescript
+import { select } from '@evershop/postgres-query-builder';
+
+// Select all columns
+const products = await select().from('product').execute(pool);
+
+// Select specific columns
+const products = await select('product_id', 'name', 'price')
+  .from('product')
+  .execute(pool);
+
+// With alias
+const query = select()
+  .select('product_id', 'id')
+  .select('name')
+  .from('product');
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1168`
+
+#### Methods
+
+<ResponseField name="from" type="function">
+  ```typescript
+  from(table: string, alias?: string): SelectQuery
+  ```
+  Specify the table to select from.
+</ResponseField>
+
+<ResponseField name="where" type="function">
+  ```typescript
+  where(field: string, operator: string, value: any): Where
+  ```
+  Add a WHERE clause.
+  
+  ```typescript
+  select().from('product')
+    .where('status', '=', 1)
+    .execute(pool);
+  ```
+</ResponseField>
+
+<ResponseField name="andWhere" type="function">
+  ```typescript
+  andWhere(field: string, operator: string, value: any): Node
+  ```
+  Add an AND condition to the WHERE clause.
+  
+  ```typescript
+  select().from('product')
+    .where('status', '=', 1)
+    .andWhere('price', '>', 100)
+    .execute(pool);
+  ```
+</ResponseField>
+
+<ResponseField name="orWhere" type="function">
+  ```typescript
+  orWhere(field: string, operator: string, value: any): Node
+  ```
+  Add an OR condition to the WHERE clause.
+</ResponseField>
+
+<ResponseField name="leftJoin" type="function">
+  ```typescript
+  leftJoin(table: string, alias?: string): Join
+  ```
+  Add a LEFT JOIN.
+  
+  ```typescript
+  select()
+    .from('product')
+    .leftJoin('product_description')
+    .on('product.product_id', '=', sql('product_description.product_id'))
+    .execute(pool);
+  ```
+</ResponseField>
+
+<ResponseField name="innerJoin" type="function">
+  ```typescript
+  innerJoin(table: string, alias?: string): Join
+  ```
+  Add an INNER JOIN.
+</ResponseField>
+
+<ResponseField name="rightJoin" type="function">
+  ```typescript
+  rightJoin(table: string, alias?: string): Join
+  ```
+  Add a RIGHT JOIN.
+</ResponseField>
+
+<ResponseField name="orderBy" type="function">
+  ```typescript
+  orderBy(field: string, direction?: 'ASC' | 'DESC'): SelectQuery
+  ```
+  Add ORDER BY clause.
+  
+  ```typescript
+  select().from('product')
+    .orderBy('price', 'DESC')
+    .execute(pool);
+  ```
+</ResponseField>
+
+<ResponseField name="limit" type="function">
+  ```typescript
+  limit(offset: number, limit: number): SelectQuery
+  ```
+  Add LIMIT and OFFSET.
+  
+  ```typescript
+  select().from('product')
+    .limit(0, 20)  // First 20 products
+    .execute(pool);
+  ```
+</ResponseField>
+
+<ResponseField name="groupBy" type="function">
+  ```typescript
+  groupBy(...fields: string[]): SelectQuery
+  ```
+  Add GROUP BY clause.
+</ResponseField>
+
+<ResponseField name="having" type="function">
+  ```typescript
+  having(field: string, operator: string, value: any): Having
+  ```
+  Add HAVING clause for aggregated queries.
+</ResponseField>
+
+<ResponseField name="execute" type="function">
+  ```typescript
+  execute(connection: Pool | PoolClient, releaseConnection?: boolean): Promise<any[]>
+  ```
+  Execute the query and return all rows.
+</ResponseField>
+
+<ResponseField name="load" type="function">
+  ```typescript
+  load(connection: Pool | PoolClient, releaseConnection?: boolean): Promise<any>
+  ```
+  Execute the query and return the first row (adds LIMIT 1).
+  
+  ```typescript
+  const product = await select()
+    .from('product')
+    .where('product_id', '=', 123)
+    .load(pool);
+  ```
+</ResponseField>
+
+### insert()
+
+Create an INSERT query.
+
+```typescript
+import { insert } from '@evershop/postgres-query-builder';
+
+const result = await insert('product')
+  .given({
+    name: 'New Product',
+    price: 29.99,
+    status: 1
+  })
+  .execute(pool);
+
+console.log(result.insertId); // Auto-generated ID
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1183`
+
+#### Methods
+
+<ResponseField name="given" type="function">
+  ```typescript
+  given(data: Record<string, any>): InsertQuery
+  ```
+  Provide the data object to insert.
+</ResponseField>
+
+<ResponseField name="prime" type="function">
+  ```typescript
+  prime(field: string, value: any): InsertQuery
+  ```
+  Set a single field value.
+  
+  ```typescript
+  insert('product')
+    .prime('name', 'Product Name')
+    .prime('price', 99.99)
+    .execute(pool);
+  ```
+</ResponseField>
+
+### update()
+
+Create an UPDATE query.
+
+```typescript
+import { update } from '@evershop/postgres-query-builder';
+
+const result = await update('product')
+  .given({ price: 39.99 })
+  .where('product_id', '=', 123)
+  .execute(pool);
+
+console.log(result.updatedId); // ID of updated row
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1198`
+
+#### Methods
+
+<ResponseField name="given" type="function">
+  ```typescript
+  given(data: Record<string, any>): UpdateQuery
+  ```
+  Provide the data object to update.
+</ResponseField>
+
+<ResponseField name="prime" type="function">
+  ```typescript
+  prime(field: string, value: any): UpdateQuery
+  ```
+  Set a single field value.
+</ResponseField>
+
+<ResponseField name="where" type="function">
+  ```typescript
+  where(field: string, operator: string, value: any): Where
+  ```
+  Add a WHERE clause (required for safety).
+</ResponseField>
+
+### del()
+
+Create a DELETE query.
+
+```typescript
+import { del } from '@evershop/postgres-query-builder';
+
+await del('product')
+  .where('product_id', '=', 123)
+  .execute(pool);
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1202`
+
+### insertOnUpdate()
+
+Create an INSERT ... ON CONFLICT DO UPDATE query (upsert).
+
+```typescript
+import { insertOnUpdate } from '@evershop/postgres-query-builder';
+
+await insertOnUpdate('product_inventory', ['product_id'])
+  .given({
+    product_id: 123,
+    qty: 50,
+    updated_at: new Date()
+  })
+  .execute(pool);
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1187`
+
+## Transaction Management
+
+### startTransaction()
+
+Begin a database transaction.
+
+```typescript
+import {
+  getConnection,
+  startTransaction,
+  commit,
+  rollback
+} from '@evershop/postgres-query-builder';
+
+const connection = await getConnection(pool);
+
+try {
+  await startTransaction(connection);
+  
+  await insert('order')
+    .given({ customer_id: 1, total: 100 })
+    .execute(connection, false);
+  
+  await insert('order_item')
+    .given({ order_id: 1, product_id: 1 })
+    .execute(connection, false);
+  
+  await commit(connection);
+} catch (error) {
+  await rollback(connection);
+  throw error;
+}
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1116`
+
+### commit()
+
+Commit a transaction and release the connection.
+
+```typescript
+await commit(connection);
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1122`
+
+### rollback()
+
+Rollback a transaction and release the connection.
+
+```typescript
+await rollback(connection);
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1129`
+
+## Utility Functions
+
+### sql()
+
+Mark a value as raw SQL (not escaped).
+
+```typescript
+import { sql, select } from '@evershop/postgres-query-builder';
+
+select()
+  .select(sql('COUNT(*)'), 'total')
+  .from('product')
+  .execute(pool);
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1153`
+
+### value()
+
+Explicitly mark a value as a bound parameter (default behavior).
+
+```typescript
+import { value } from '@evershop/postgres-query-builder';
+
+select()
+  .from('product')
+  .where('name', '=', value('Product Name'))
+  .execute(pool);
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1160`
+
+### execute()
+
+Execute raw SQL.
+
+```typescript
+import { execute, pool } from '@evershop/postgres-query-builder';
+
+const result = await execute(
+  pool,
+  'SELECT * FROM product WHERE status = 1'
+);
+```
+
+**Location:** `packages/postgres-query-builder/src/index.ts:1146`
+
+## Operators
+
+Supported operators in WHERE clauses:
+
+- `=` - Equal
+- `!=` - Not equal
+- `>` - Greater than
+- `>=` - Greater than or equal
+- `<` - Less than
+- `<=` - Less than or equal
+- `LIKE` - Pattern matching
+- `IN` - In array
+- `NOT IN` - Not in array
+- `IS NULL` - Is null
+- `IS NOT NULL` - Is not null
+
+## Best Practices
+
+<Steps>
+  <Step title="Always Use the Pool for Simple Queries">
+    Use `pool` for single queries. Reserve `getConnection()` for transactions.
+  </Step>
+  
+  <Step title="Use Parameterized Queries">
+    The query builder automatically parameterizes values to prevent SQL injection.
+  </Step>
+  
+  <Step title="Release Connections">
+    Always release connections after transactions, especially on error.
+  </Step>
+  
+  <Step title="Use Transactions for Multi-Step Operations">
+    Group related INSERT/UPDATE/DELETE operations in transactions for data consistency.
+  </Step>
+  
+  <Step title="Prefer load() for Single Rows">
+    Use `load()` instead of `execute()` when you expect only one result.
+  </Step>
+</Steps>

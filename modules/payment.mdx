@@ -1,0 +1,419 @@
+---
+title: Payment Module
+description: Payment gateway integrations including Stripe, PayPal, and Cash on Delivery
+---
+
+The Payment module provides payment gateway integrations for processing customer payments in EverShop.
+
+## Overview
+
+EverShop includes built-in support for:
+
+- **Stripe** - Credit card and digital wallet payments
+- **PayPal** - PayPal checkout integration
+- **Cash on Delivery (COD)** - Payment upon delivery
+
+Additional payment methods can be added through extensions.
+
+## Payment Architecture
+
+Payment processing in EverShop:
+
+<Steps>
+  <Step title="Method Selection">
+    Customer selects payment method during checkout
+  </Step>
+  <Step title="Payment Processing">
+    Payment gateway processes the transaction
+  </Step>
+  <Step title="Order Creation">
+    Order is created upon successful payment
+  </Step>
+  <Step title="Confirmation">
+    Customer receives order confirmation
+  </Step>
+</Steps>
+
+## Stripe Integration
+
+The Stripe module (`packages/evershop/src/modules/stripe/`) provides:
+
+- Credit card payments
+- 3D Secure authentication
+- Payment intents API
+- Webhook handling for payment events
+
+### Stripe Configuration
+
+Configure Stripe in `config/default.json`:
+
+```json
+{
+  "stripe": {
+    "publishableKey": "pk_test_...",
+    "secretKey": "sk_test_...",
+    "paymentIntentStatus": [
+      "requires_capture",
+      "succeeded"
+    ]
+  }
+}
+```
+
+### Environment Variables
+
+For security, use environment variables:
+
+```bash
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_SECRET_KEY=sk_live_...
+```
+
+### Stripe Payment Flow
+
+```typescript
+// 1. Create Payment Intent
+const paymentIntent = await stripe.paymentIntents.create({
+  amount: grandTotal * 100, // Amount in cents
+  currency: 'usd',
+  automatic_payment_methods: {
+    enabled: true,
+  },
+});
+
+// 2. Confirm payment on frontend
+const { error } = await stripe.confirmPayment({
+  elements,
+  confirmParams: {
+    return_url: `${window.location.origin}/checkout/success`,
+  },
+});
+
+// 3. Webhook handles payment confirmation
+// POST /api/stripe/webhook
+```
+
+### Stripe Components
+
+The Stripe module includes React components:
+
+```typescript
+import { StripeApp } from '@evershop/evershop/modules/stripe/pages/frontStore/checkout/StripeApp';
+
+// Renders Stripe payment form
+<StripeApp />
+```
+
+## PayPal Integration
+
+The PayPal module (`packages/evershop/src/modules/paypal/`) provides:
+
+- PayPal Checkout
+- PayPal Smart Payment Buttons
+- Order capture and refunds
+
+### PayPal Configuration
+
+Configure PayPal in `config/default.json`:
+
+```json
+{
+  "paypal": {
+    "clientId": "your-client-id",
+    "clientSecret": "your-client-secret",
+    "mode": "sandbox",
+    "disableFunding": ["credit", "card"]
+  }
+}
+```
+
+### Environment Variables
+
+```bash
+PAYPAL_CLIENT_ID=...
+PAYPAL_CLIENT_SECRET=...
+PAYPAL_MODE=live  # or 'sandbox' for testing
+```
+
+### PayPal Payment Flow
+
+```typescript
+// 1. Create PayPal order
+const order = await fetch('/api/paypal/createOrder', {
+  method: 'POST',
+  body: JSON.stringify({ cartId })
+});
+
+// 2. Customer approves payment via PayPal
+// PayPal SDK handles this
+
+// 3. Capture payment
+const capture = await fetch('/api/paypal/captureOrder', {
+  method: 'POST',
+  body: JSON.stringify({ orderId })
+});
+```
+
+### PayPal Components
+
+The PayPal module includes:
+
+```typescript
+import { PayPalButtons } from '@evershop/evershop/modules/paypal/pages/frontStore/checkout/PayPalButtons';
+
+// Renders PayPal payment buttons
+<PayPalButtons />
+```
+
+## Cash on Delivery (COD)
+
+The COD module (`packages/evershop/src/modules/cod/`) provides:
+
+- Payment upon delivery option
+- No online payment processing
+- Simple checkout flow
+
+### COD Configuration
+
+```json
+{
+  "cod": {
+    "enabled": true,
+    "title": "Cash on Delivery",
+    "description": "Pay when you receive your order",
+    "sortOrder": 10
+  }
+}
+```
+
+### COD Payment Flow
+
+<Steps>
+  <Step title="Customer Selection">
+    Customer selects "Cash on Delivery" at checkout
+  </Step>
+  <Step title="Order Created">
+    Order is created with payment status "pending"
+  </Step>
+  <Step title="Delivery">
+    Payment collected upon delivery
+  </Step>
+  <Step title="Manual Update">
+    Admin manually updates payment status to "paid"
+  </Step>
+</Steps>
+
+## Payment Method Registration
+
+Payment methods register themselves:
+
+```typescript
+// From stripe/bootstrap.js
+const registerPaymentMethod = (
+  name: string,
+  code: string,
+  component: string,
+  sortOrder: number
+) => {
+  // Register payment method
+};
+
+registerPaymentMethod(
+  'Stripe',
+  'stripe',
+  '@evershop/evershop/modules/stripe/pages/frontStore/checkout/StripeApp',
+  10
+);
+```
+
+## Available Payment Methods
+
+Get available payment methods:
+
+```graphql
+query {
+  cart {
+    availablePaymentMethods {
+      code
+      name
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "availablePaymentMethods": [
+    { "code": "stripe", "name": "Credit Card" },
+    { "code": "paypal", "name": "PayPal" },
+    { "code": "cod", "name": "Cash on Delivery" }
+  ]
+}
+```
+
+## Payment Status
+
+Orders track payment status:
+
+- **pending** - Payment not yet received
+- **processing** - Payment being processed
+- **paid** - Payment confirmed
+- **failed** - Payment failed
+- **refunded** - Payment refunded
+
+## Webhooks
+
+### Stripe Webhooks
+
+Stripe uses webhooks for event notifications:
+
+```typescript
+// POST /api/stripe/webhook
+// Handles events:
+- payment_intent.succeeded
+- payment_intent.payment_failed
+- charge.refunded
+```
+
+Configure webhook URL in Stripe dashboard:
+
+```
+https://yourdomain.com/api/stripe/webhook
+```
+
+### PayPal Webhooks
+
+PayPal IPN (Instant Payment Notification):
+
+```typescript
+// POST /api/paypal/webhook
+// Handles events:
+- PAYMENT.CAPTURE.COMPLETED
+- PAYMENT.CAPTURE.DENIED
+- PAYMENT.CAPTURE.REFUNDED
+```
+
+## Refunds
+
+### Processing Refunds
+
+Refunds are processed through payment gateways:
+
+```typescript
+// Stripe refund
+const refund = await stripe.refunds.create({
+  payment_intent: 'pi_...',
+  amount: 1000, // Amount in cents
+});
+
+// PayPal refund
+const refund = await paypal.payments.capture.refund({
+  capture_id: 'capture_id',
+  amount: {
+    value: '10.00',
+    currency_code: 'USD'
+  }
+});
+```
+
+### Partial Refunds
+
+Both Stripe and PayPal support partial refunds:
+
+```typescript
+// Refund $10 of a $50 order
+await processRefund({
+  orderId,
+  amount: 10.00,
+  reason: 'Customer request'
+});
+```
+
+## Testing Payments
+
+### Stripe Test Cards
+
+Use Stripe test cards:
+
+- **Success**: `4242 4242 4242 4242`
+- **Decline**: `4000 0000 0000 0002`
+- **3D Secure**: `4000 0027 6000 3184`
+
+### PayPal Sandbox
+
+Use PayPal sandbox accounts:
+
+1. Create sandbox accounts in PayPal Developer Dashboard
+2. Use sandbox credentials in development
+3. Test with sandbox buyer accounts
+
+## Security Best Practices
+
+<Warning>
+  **Never store credit card numbers** in your database. Use tokenization provided by payment gateways.
+</Warning>
+
+<Note>
+  **PCI Compliance**: By using Stripe or PayPal, you reduce PCI compliance requirements as card data never touches your server.
+</Note>
+
+<Tip>
+  **SSL Certificate**: Always use HTTPS in production. Payment gateways require secure connections.
+</Tip>
+
+## Adding Custom Payment Methods
+
+Create a custom payment module:
+
+<Steps>
+  <Step title="Create Module">
+    Create a new module in `extensions/your-payment-module/`
+  </Step>
+  <Step title="Register Payment Method">
+    Register your payment method in `bootstrap.js`
+  </Step>
+  <Step title="Create Components">
+    Create React components for the payment form
+  </Step>
+  <Step title="Handle Webhooks">
+    Implement webhook handlers for payment events
+  </Step>
+  <Step title="Update Order Status">
+    Update order payment status based on gateway response
+  </Step>
+</Steps>
+
+## API Endpoints
+
+Payment-related endpoints:
+
+### Stripe
+- `POST /api/stripe/createPaymentIntent` - Create payment intent
+- `POST /api/stripe/webhook` - Stripe webhook handler
+
+### PayPal
+- `POST /api/paypal/createOrder` - Create PayPal order
+- `POST /api/paypal/captureOrder` - Capture payment
+- `POST /api/paypal/webhook` - PayPal webhook handler
+
+### COD
+- No API endpoints (no online processing)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Checkout Module" icon="shopping-cart" href="/modules/checkout">
+    Checkout process and payment selection
+  </Card>
+  <Card title="Orders Module" icon="receipt" href="/modules/orders">
+    Order payment status management
+  </Card>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Payment gateway configuration
+  </Card>
+  <Card title="Environment Variables" icon="key" href="/deployment/environment-variables">
+    Payment credentials setup
+  </Card>
+</CardGroup>

@@ -1,0 +1,652 @@
+---
+title: Production Deployment
+description: Best practices for deploying EverShop in production environments
+---
+
+This guide covers production deployment best practices, performance optimization, and security hardening for EverShop.
+
+## Prerequisites
+
+Before deploying to production:
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL 13+" icon="database">
+    A production-ready PostgreSQL database
+  </Card>
+  <Card title="Node.js 18+" icon="node-js">
+    Latest LTS version of Node.js
+  </Card>
+  <Card title="SSL Certificate" icon="lock">
+    Valid SSL/TLS certificate for HTTPS
+  </Card>
+  <Card title="Reverse Proxy" icon="server">
+    Nginx or similar for load balancing
+  </Card>
+</CardGroup>
+
+## Production Checklist
+
+### Security
+
+- [ ] Change all default passwords
+- [ ] Generate strong JWT secrets (32+ characters)
+- [ ] Enable HTTPS/SSL
+- [ ] Configure database SSL mode (`verify-full` or `require`)
+- [ ] Set `NODE_ENV=production`
+- [ ] Restrict database access to application server only
+- [ ] Enable firewall rules
+- [ ] Configure rate limiting
+- [ ] Remove development dependencies
+- [ ] Disable database ports on public interface
+
+### Performance
+
+- [ ] Build application with `npm run build`
+- [ ] Enable asset compression
+- [ ] Configure CDN for static assets
+- [ ] Set up database connection pooling
+- [ ] Enable HTTP/2
+- [ ] Configure caching headers
+- [ ] Optimize database indexes
+- [ ] Set appropriate session timeouts
+
+### Monitoring
+
+- [ ] Configure logging
+- [ ] Set up error tracking (e.g., Sentry)
+- [ ] Monitor database performance
+- [ ] Set up uptime monitoring
+- [ ] Configure backup automation
+- [ ] Set up alerts for critical errors
+
+### Infrastructure
+
+- [ ] Configure automatic backups
+- [ ] Set up load balancing (if needed)
+- [ ] Configure auto-scaling (if using cloud)
+- [ ] Set up staging environment
+- [ ] Configure CI/CD pipeline
+- [ ] Document deployment process
+
+## Production Build
+
+### Building the Application
+
+Always build EverShop before starting in production:
+
+```bash
+# Install dependencies
+npm install --production
+
+# Build the application
+npm run build
+
+# Start in production mode
+NODE_ENV=production npm run start
+```
+
+<Note>
+The build process compiles TypeScript, bundles assets, and optimizes code for production.
+</Note>
+
+### Build Optimization
+
+For faster builds:
+
+```bash
+# Skip minification (use reverse proxy compression instead)
+npm run build -- --skip-minify
+```
+
+## Environment Configuration
+
+### Production .env File
+
+Create a secure `.env` file:
+
+```bash
+# Database - Use read replica if available
+DB_HOST="prod-db-primary.example.com"
+DB_PORT="5432"
+DB_NAME="evershop_production"
+DB_USER="evershop_app"
+DB_PASSWORD="<STRONG_PASSWORD>"
+DB_SSLMODE="verify-full"
+DB_SSLROOTCERT="/etc/ssl/certs/postgres-ca.crt"
+
+# Server
+PORT="3000"
+NODE_ENV="production"
+
+# JWT Configuration - Use strong random strings
+JWT_ISSUER="evershop-production"
+JWT_ADMIN_SECRET="<GENERATE_SECURE_32_CHAR_STRING>"
+JWT_ADMIN_REFRESH_SECRET="<GENERATE_SECURE_32_CHAR_STRING>"
+JWT_ADMIN_TOKEN_EXPIRY="900"          # 15 minutes
+JWT_ADMIN_REFRESH_TOKEN_EXPIRY="86400" # 24 hours
+
+JWT_CUSTOMER_SECRET="<GENERATE_SECURE_32_CHAR_STRING>"
+JWT_CUSTOMER_REFRESH_SECRET="<GENERATE_SECURE_32_CHAR_STRING>"
+JWT_CUSTOMER_TOKEN_EXPIRY="3600"       # 1 hour
+JWT_CUSTOMER_REFRESH_TOKEN_EXPIRY="604800" # 7 days
+```
+
+### Generate Secure Secrets
+
+```bash
+# Generate secure random strings
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Or use OpenSSL
+openssl rand -hex 32
+```
+
+## Database Setup
+
+### PostgreSQL Configuration
+
+Optimize PostgreSQL for production:
+
+```sql
+-- Create dedicated database user
+CREATE USER evershop_app WITH PASSWORD 'secure_password';
+
+-- Create database
+CREATE DATABASE evershop_production
+  WITH OWNER = evershop_app
+       ENCODING = 'UTF8'
+       LC_COLLATE = 'en_US.UTF-8'
+       LC_CTYPE = 'en_US.UTF-8'
+       TEMPLATE = template0;
+
+-- Grant privileges
+GRANT ALL PRIVILEGES ON DATABASE evershop_production TO evershop_app;
+
+-- Connect to database and grant schema privileges
+\c evershop_production
+GRANT ALL ON SCHEMA public TO evershop_app;
+```
+
+### Connection Pooling
+
+EverShop uses connection pooling with a maximum of 20 connections. For high-traffic sites, consider:
+
+1. **Database connection pooler** (e.g., PgBouncer)
+2. **Read replicas** for query distribution
+3. **Connection pool monitoring**
+
+### Database Backups
+
+Automate daily backups:
+
+```bash
+#!/bin/bash
+# backup-db.sh
+
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_DIR="/backups/evershop"
+DB_NAME="evershop_production"
+
+# Create backup
+pg_dump -U evershop_app -h localhost $DB_NAME | gzip > $BACKUP_DIR/backup_$DATE.sql.gz
+
+# Remove backups older than 30 days
+find $BACKUP_DIR -name "backup_*.sql.gz" -mtime +30 -delete
+```
+
+Schedule with cron:
+
+```bash
+# Daily backup at 2 AM
+0 2 * * * /usr/local/bin/backup-db.sh
+```
+
+## Reverse Proxy Setup
+
+### Nginx Configuration
+
+Recommended Nginx configuration for production:
+
+```nginx
+upstream evershop_backend {
+    # Load balancing across multiple instances
+    least_conn;
+    server 127.0.0.1:3000;
+    # server 127.0.0.1:3001;
+    # server 127.0.0.1:3002;
+}
+
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name yourstore.com www.yourstore.com;
+    
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name yourstore.com www.yourstore.com;
+    
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/yourstore.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourstore.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    
+    # Security Headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    
+    # Client upload size
+    client_max_body_size 50M;
+    
+    # Compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/javascript application/json;
+    
+    # Static files caching
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        proxy_pass http://evershop_backend;
+    }
+    
+    # Proxy to EverShop
+    location / {
+        proxy_pass http://evershop_backend;
+        proxy_http_version 1.1;
+        
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        
+        proxy_cache_bypass $http_upgrade;
+        proxy_buffering off;
+    }
+    
+    # Rate limiting for API endpoints
+    location /api/ {
+        limit_req zone=api_limit burst=20 nodelay;
+        proxy_pass http://evershop_backend;
+    }
+}
+
+# Rate limiting zone
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+```
+
+### SSL with Let's Encrypt
+
+Get free SSL certificate:
+
+```bash
+# Install certbot
+sudo apt-get install certbot python3-certbot-nginx
+
+# Obtain certificate
+sudo certbot --nginx -d yourstore.com -d www.yourstore.com
+
+# Auto-renewal (already configured by certbot)
+sudo certbot renew --dry-run
+```
+
+## Process Management
+
+### PM2 for Node.js
+
+Use PM2 for process management and auto-restart:
+
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Start EverShop with PM2
+pm2 start npm --name "evershop" -- run start
+
+# Save PM2 configuration
+pm2 save
+
+# Configure PM2 to start on boot
+pm2 startup
+```
+
+### PM2 Ecosystem File
+
+Create `ecosystem.config.js`:
+
+```javascript
+module.exports = {
+  apps: [{
+    name: 'evershop',
+    script: 'npm',
+    args: 'run start',
+    instances: 'max', // Use all CPU cores
+    exec_mode: 'cluster',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3000
+    },
+    error_file: './logs/err.log',
+    out_file: './logs/out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    max_memory_restart: '1G',
+    autorestart: true,
+    watch: false
+  }]
+};
+```
+
+Start with ecosystem file:
+
+```bash
+pm2 start ecosystem.config.js
+```
+
+### PM2 Commands
+
+```bash
+# Monitor processes
+pm2 monit
+
+# View logs
+pm2 logs evershop
+
+# Restart application
+pm2 restart evershop
+
+# Reload with zero downtime
+pm2 reload evershop
+
+# Stop application
+pm2 stop evershop
+
+# View status
+pm2 status
+
+# Delete from PM2
+pm2 delete evershop
+```
+
+## Performance Optimization
+
+### Caching Strategy
+
+Implement caching at multiple levels:
+
+1. **Nginx caching** for static assets
+2. **CDN** for global content delivery
+3. **Database query caching**
+4. **Session storage** in Redis (optional)
+
+### CDN Integration
+
+Use a CDN for static assets:
+
+```nginx
+# Nginx - redirect static assets to CDN
+location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg)$ {
+    return 301 https://cdn.yourstore.com$request_uri;
+}
+```
+
+### Database Optimization
+
+```sql
+-- Add indexes for common queries
+CREATE INDEX idx_product_status ON product(status);
+CREATE INDEX idx_product_visibility ON product(visibility);
+CREATE INDEX idx_order_date ON "order"(created_at DESC);
+
+-- Analyze tables regularly
+ANALYZE;
+
+-- Vacuum database
+VACUUM ANALYZE;
+```
+
+## Monitoring and Logging
+
+### Application Logging
+
+Configure structured logging:
+
+```javascript
+// In production, logs go to files
+const logLevel = process.env.LOG_LEVEL || 'info';
+const logFile = process.env.LOG_FILE || './logs/app.log';
+```
+
+### Error Tracking with Sentry
+
+Integrate Sentry for error tracking:
+
+```bash
+npm install @sentry/node
+```
+
+### Health Check Endpoint
+
+Implement a health check:
+
+```bash
+# Check if application is responding
+curl http://localhost:3000/
+
+# Database health check
+curl http://localhost:3000/admin
+```
+
+### Monitoring Tools
+
+- **PM2 Plus** - Process monitoring
+- **New Relic** - Application performance monitoring
+- **Datadog** - Infrastructure monitoring
+- **UptimeRobot** - Uptime monitoring
+
+## Security Hardening
+
+### Firewall Configuration
+
+```bash
+# Allow SSH, HTTP, and HTTPS
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Block direct access to application port
+sudo ufw deny 3000/tcp
+
+# Block direct access to database
+sudo ufw deny 5432/tcp
+
+# Enable firewall
+sudo ufw enable
+```
+
+### Fail2Ban for Brute Force Protection
+
+```bash
+# Install fail2ban
+sudo apt-get install fail2ban
+
+# Configure for Nginx
+sudo nano /etc/fail2ban/jail.local
+```
+
+Add:
+
+```ini
+[nginx-http-auth]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/error.log
+
+[nginx-noscript]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/access.log
+```
+
+### Regular Security Updates
+
+```bash
+# Update system packages
+sudo apt-get update && sudo apt-get upgrade -y
+
+# Update Node.js dependencies
+npm audit
+npm audit fix
+```
+
+## Deployment Strategies
+
+### Blue-Green Deployment
+
+1. Deploy new version to "green" environment
+2. Test thoroughly
+3. Switch traffic from "blue" to "green"
+4. Keep "blue" as rollback option
+
+### Rolling Updates
+
+With PM2 cluster mode:
+
+```bash
+pm2 reload evershop
+```
+
+This performs zero-downtime rolling updates.
+
+### CI/CD Pipeline
+
+Example GitHub Actions workflow:
+
+```yaml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /var/www/evershop
+            git pull
+            npm install --production
+            npm run build
+            pm2 reload evershop
+```
+
+## Scaling Strategies
+
+### Vertical Scaling
+
+Increase server resources:
+- More CPU cores
+- More RAM
+- Faster disk (SSD/NVMe)
+
+### Horizontal Scaling
+
+Run multiple EverShop instances:
+
+```bash
+# Start multiple instances on different ports
+PORT=3000 pm2 start npm --name "evershop-1" -- run start
+PORT=3001 pm2 start npm --name "evershop-2" -- run start
+PORT=3002 pm2 start npm --name "evershop-3" -- run start
+```
+
+Configure Nginx load balancing (see Nginx configuration above).
+
+### Database Scaling
+
+1. **Read replicas** for read-heavy workloads
+2. **Connection pooling** with PgBouncer
+3. **Partitioning** for large tables
+4. **Managed database services** (AWS RDS, Azure Database)
+
+## Troubleshooting Production Issues
+
+### High Memory Usage
+
+```bash
+# Check memory usage
+pm2 monit
+
+# Restart if memory exceeds threshold
+pm2 restart evershop
+```
+
+### Application Crashes
+
+```bash
+# View error logs
+pm2 logs evershop --err
+
+# Check system logs
+journalctl -u nginx -n 50
+```
+
+### Database Connection Issues
+
+```bash
+# Check database connectivity
+psql -h $DB_HOST -U $DB_USER -d $DB_NAME
+
+# Check connection pool
+SELECT * FROM pg_stat_activity;
+```
+
+### Performance Degradation
+
+1. Check database slow queries
+2. Monitor server resources
+3. Review Nginx access logs
+4. Analyze application logs
+
+## Best Practices Summary
+
+<CardGroup cols={2}>
+  <Card title="Security First" icon="shield-halved">
+    Always use HTTPS, strong passwords, and keep software updated
+  </Card>
+  
+  <Card title="Automated Backups" icon="clock-rotate-left">
+    Configure daily automated backups with off-site storage
+  </Card>
+  
+  <Card title="Monitoring" icon="chart-line">
+    Implement comprehensive monitoring and alerting
+  </Card>
+  
+  <Card title="Documentation" icon="book">
+    Document your deployment process and configurations
+  </Card>
+</CardGroup>

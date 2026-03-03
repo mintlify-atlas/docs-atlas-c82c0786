@@ -1,0 +1,369 @@
+---
+title: Checkout Module
+description: Shopping cart, checkout process, and order placement
+---
+
+The Checkout module handles the shopping cart, checkout process, and order placement in EverShop.
+
+## Overview
+
+The Checkout module provides:
+
+- **Shopping Cart** - Add, update, and remove items
+- **Cart Persistence** - Session-based and database-backed carts
+- **Checkout Process** - Multi-step checkout flow
+- **Shipping Methods** - Available shipping options
+- **Payment Methods** - Payment method selection
+- **Order Creation** - Convert cart to order
+
+## Module Structure
+
+```
+checkout/
+├── api/                    # Cart and checkout API endpoints
+├── graphql/                # GraphQL types and resolvers
+│   ├── types/
+│   │   ├── Cart/          # Cart types
+│   │   ├── CartItem/      # Cart item types
+│   │   └── Checkout/      # Checkout types
+├── migration/             # Database migrations
+├── pages/                 # Cart and checkout pages
+├── services/              # Cart and checkout services
+└── bootstrap.ts           # Module initialization
+```
+
+## GraphQL Types
+
+### Cart Type
+
+```graphql
+type Cart implements ShoppingCart {
+  cartId: Int!
+  uuid: String!
+  currency: String!
+  customerEmail: String
+  customerId: ID
+  status: Int!
+  coupon: String
+  items: [CartItem]!
+  totalQty: Int!
+  shippingAddress: CartAddress
+  billingAddress: CartAddress
+  shippingMethod: String
+  shippingMethodName: String
+  paymentMethod: String
+  paymentMethodName: String
+  discountAmount: Float
+  taxAmount: Float
+  shippingFeeExclTax: Float
+  shippingFeeInclTax: Float
+  subTotal: Float
+  subTotalInclTax: Float
+  totalTaxAmount: Float
+  grandTotal: Float
+}
+```
+
+### CartItem Type
+
+```graphql
+type CartItem implements ShoppingCartItem {
+  cartItemId: Int!
+  uuid: String!
+  productId: Int!
+  productSku: String!
+  productName: String!
+  thumbnail: String
+  productWeight: Float
+  qty: Int!
+  finalPrice: Float!
+  finalPriceInclTax: Float!
+  total: Float!
+  totalInclTax: Float!
+  variantGroupId: ID
+  variantOptions: String
+  productCustomOptions: String
+}
+```
+
+## Cart Lifecycle
+
+### 1. Cart Creation
+
+A cart is automatically created when:
+
+- A guest user adds their first item
+- A customer logs in without an active cart
+
+```typescript
+// From checkout/services/getCart.js
+export async function createNewCart(customerId, sessionId) {
+  const cart = await insert('cart')
+    .given({ 
+      sid: sessionId,
+      customer_id: customerId,
+      currency: getCurrency().code,
+      status: 1 // Active
+    })
+    .execute(pool);
+  
+  return cart;
+}
+```
+
+### 2. Adding Items
+
+Items are added through the cart API:
+
+```javascript
+// POST /api/cart/items
+await fetch('/api/cart/items', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    productId: 123,
+    qty: 2,
+    customOptions: { /* optional */ },
+    variantOptions: { /* optional */ }
+  })
+});
+```
+
+### 3. Cart Updates
+
+Cart items can be updated:
+
+- **Quantity changes** - Update item quantity
+- **Remove items** - Delete cart items
+- **Apply coupons** - Add promotion codes
+
+### 4. Checkout Process
+
+The checkout flow:
+
+<Steps>
+  <Step title="Contact Information">
+    Customer provides email and contact details
+  </Step>
+  <Step title="Shipping Address">
+    Enter or select shipping address
+  </Step>
+  <Step title="Shipping Method">
+    Choose from available shipping methods
+  </Step>
+  <Step title="Payment Method">
+    Select payment method (Stripe, PayPal, COD)
+  </Step>
+  <Step title="Review & Place Order">
+    Review order details and confirm
+  </Step>
+</Steps>
+
+## Cart Services
+
+The Checkout module exports these services:
+
+```typescript
+import { Cart, Item } from '@evershop/evershop/checkout/services';
+
+// Get cart instance
+const cart = await Cart.getCart(uuid);
+
+// Add item to cart
+await cart.addItem(productId, qty, options);
+
+// Update item quantity
+await cart.updateItemQty(itemId, newQty);
+
+// Remove item
+await cart.removeItem(itemId);
+
+// Set shipping address
+await cart.setShippingAddress(address);
+
+// Set shipping method
+await cart.setShippingMethod(methodCode);
+
+// Set payment method
+await cart.setPaymentMethod(methodCode);
+
+// Place order
+const order = await cart.placeOrder();
+```
+
+## Shipping Methods
+
+### Available Shipping Methods
+
+Shipping methods are provided by other modules (e.g., flat rate, free shipping):
+
+```graphql
+type AvailableShippingMethod {
+  code: String!
+  name: String!
+  cost: Float!
+  costInclTax: Float!
+}
+
+type Cart {
+  availableShippingMethods: [AvailableShippingMethod]
+}
+```
+
+### Selecting Shipping Method
+
+```javascript
+await fetch('/api/cart/shippingMethod', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    methodCode: 'flat_rate'
+  })
+});
+```
+
+## Payment Methods
+
+### Available Payment Methods
+
+Payment methods are provided by payment modules:
+
+```graphql
+type AvailablePaymentMethod {
+  code: String!
+  name: String!
+}
+
+type Cart {
+  availablePaymentMethods: [AvailablePaymentMethod]
+}
+```
+
+### Payment Integration
+
+Payment processing is handled by:
+
+- **Stripe** - Credit card payments
+- **PayPal** - PayPal checkout
+- **COD** - Cash on delivery
+
+See the [Payment Module](/modules/payment) for details.
+
+## Price Calculation
+
+Cart totals are calculated automatically:
+
+```typescript
+// Price calculation includes:
+- Item prices (qty × unit price)
+- Product discounts
+- Coupon discounts
+- Tax calculation
+- Shipping costs
+- Grand total
+```
+
+### Tax Calculation
+
+Taxes are calculated based on:
+
+- Product tax class
+- Customer shipping address
+- Tax rules and rates
+
+## Database Schema
+
+The Checkout module defines:
+
+- `cart` - Shopping cart header
+- `cart_item` - Cart line items
+- `cart_address` - Shipping and billing addresses
+
+## Cart Context (React)
+
+The storefront provides a React Context for cart management:
+
+```typescript
+import { useCart } from '@evershop/evershop/components/common/context/cart';
+
+function ProductPage() {
+  const { addItemToCart, cartId, items } = useCart();
+  
+  const handleAddToCart = async () => {
+    await addItemToCart({
+      productId,
+      qty: 1
+    });
+  };
+  
+  return (
+    <button onClick={handleAddToCart}>
+      Add to Cart ({items.length} items)
+    </button>
+  );
+}
+```
+
+## Checkout Validation
+
+The checkout process validates:
+
+- **Product availability** - Items are in stock
+- **Shipping address** - Valid address format
+- **Shipping method** - Method is available
+- **Payment method** - Method is configured
+- **Minimum order amount** - If configured
+
+## Order Creation
+
+When checkout is complete:
+
+1. Cart is converted to an order
+2. Inventory is decremented
+3. Customer receives order confirmation
+4. Cart status is set to "completed"
+5. New cart is created for customer
+
+## Best Practices
+
+<Note>
+  **Cart Persistence**: Carts are persisted in the database and linked to the session, so customers can resume their cart across devices.
+</Note>
+
+<Warning>
+  **Stock Validation**: Always validate product availability before checkout to prevent overselling.
+</Warning>
+
+<Tip>
+  **Guest Checkout**: EverShop supports guest checkout - customers can place orders without creating an account.
+</Tip>
+
+## API Endpoints
+
+Key checkout API endpoints:
+
+- `POST /api/cart/items` - Add item to cart
+- `PATCH /api/cart/items/:id` - Update item quantity
+- `DELETE /api/cart/items/:id` - Remove item
+- `POST /api/cart/shippingAddress` - Set shipping address
+- `POST /api/cart/billingAddress` - Set billing address
+- `POST /api/cart/shippingMethod` - Select shipping method
+- `POST /api/cart/paymentMethod` - Select payment method
+- `POST /api/cart/checkout` - Place order
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Checkout Services API" icon="code" href="/api/services/checkout">
+    Learn about the Checkout services API
+  </Card>
+  <Card title="Cart Components" icon="shopping-cart" href="/components/storefront-components">
+    Cart and checkout React components
+  </Card>
+  <Card title="Orders Module" icon="receipt" href="/modules/orders">
+    Order management after checkout
+  </Card>
+  <Card title="Payment Module" icon="credit-card" href="/modules/payment">
+    Payment method integration
+  </Card>
+</CardGroup>

@@ -1,80 +1,472 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quick Start'
+description: 'Get your EverShop store up and running in 5 minutes'
 ---
 
-## Get started in three steps
+# Quick Start
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will help you set up a fully functional EverShop store in under 5 minutes using Docker.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  This quickstart uses Docker for the fastest setup. For other installation methods, see the [Installation Guide](/installation).
 </Note>
+
+## Prerequisites
+
+Make sure you have Docker installed:
+
+<CardGroup cols={3}>
+  <Card title="Docker Desktop" icon="docker" href="https://www.docker.com/products/docker-desktop">
+    For macOS and Windows
+  </Card>
+  <Card title="Docker Engine" icon="docker" href="https://docs.docker.com/engine/install/">
+    For Linux systems
+  </Card>
+  <Card title="Docker Compose" icon="docker" href="https://docs.docker.com/compose/install/">
+    Usually included with Docker Desktop
+  </Card>
+</CardGroup>
+
+## Setup Your Store
+
+<Steps>
+  <Step title="Download Docker Compose File">
+    Open your terminal and download the EverShop Docker Compose configuration:
+
+    ```bash
+    curl -sSL https://raw.githubusercontent.com/evershopcommerce/evershop/main/docker-compose.yml > docker-compose.yml
+    ```
+
+    This creates a `docker-compose.yml` file in your current directory.
+  </Step>
+
+  <Step title="Start EverShop">
+    Launch EverShop and its PostgreSQL database:
+
+    ```bash
+    docker compose up -d
+    ```
+
+    Docker will:
+    - Download the EverShop image (~500MB)
+    - Download PostgreSQL 16 image
+    - Create and configure the database
+    - Start both services in the background
+
+    <Info>
+      The first startup takes 2-3 minutes while the database initializes. Subsequent starts are much faster.
+    </Info>
+  </Step>
+
+  <Step title="Verify Installation">
+    Check that the containers are running:
+
+    ```bash
+    docker compose ps
+    ```
+
+    You should see two services running:
+    - `app` - EverShop application (port 3000)
+    - `database` - PostgreSQL 16 (port 5432)
+
+    View the application logs:
+    ```bash
+    docker compose logs -f app
+    ```
+
+    Look for a message indicating the server started successfully.
+  </Step>
+
+  <Step title="Access Your Store">
+    Your EverShop store is now running! Open your browser:
+
+    <CardGroup cols={2}>
+      <Card title="Storefront" icon="shop" href="http://localhost:3000">
+        Customer-facing store at `http://localhost:3000`
+      </Card>
+      <Card title="Admin Panel" icon="gauge" href="http://localhost:3000/admin">
+        Admin dashboard at `http://localhost:3000/admin`
+      </Card>
+    </CardGroup>
+  </Step>
+</Steps>
+
+## Admin Login
+
+The Docker image comes with a default admin account for testing:
+
+<CodeGroup>
+```bash Default Credentials
+Email: admin@evershop.io
+Password: 123456
+```
+</CodeGroup>
+
+<Warning>
+  **Security Notice:** Change these default credentials before deploying to production! You can create a new admin user or change the password using the CLI.
+</Warning>
+
+## First Steps
+
+Now that your store is running, here's what to do next:
+
+<Steps>
+  <Step title="Explore the Admin Panel">
+    Log into the admin panel at [http://localhost:3000/admin](http://localhost:3000/admin):
+
+    <Tabs>
+      <Tab title="Dashboard">
+        The dashboard shows:
+        - Recent orders and sales
+        - Revenue charts
+        - Quick stats on products and customers
+        - System notifications
+      </Tab>
+      <Tab title="Catalog">
+        Manage your products:
+        - Create products with variants
+        - Organize categories
+        - Set up attributes
+        - Manage inventory
+      </Tab>
+      <Tab title="Orders">
+        View and process orders:
+        - Order list with filters
+        - Order details and status
+        - Create manual orders
+        - Export order data
+      </Tab>
+      <Tab title="Customers">
+        Customer management:
+        - Customer list and profiles
+        - Order history
+        - Account status
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Create Your First Product">
+    Add a product to your catalog:
+
+    1. Navigate to **Catalog → Products** in the admin sidebar
+    2. Click **Create New Product**
+    3. Fill in the product details:
+       - Name and description
+       - Price and SKU
+       - Images
+       - Categories
+       - Inventory quantity
+    4. Click **Save** to publish
+
+    <Info>
+      Products support variants (size, color, etc.), custom attributes, and multiple images out of the box.
+    </Info>
+  </Step>
+
+  <Step title="Configure Store Settings">
+    Customize your store settings:
+
+    1. Go to **Settings → Store Information**
+    2. Set your store name, logo, and contact information
+    3. Configure **Settings → Tax** for tax rates
+    4. Set up **Settings → Shipping** methods and rates
+    5. Enable payment methods in **Settings → Payment**
+
+    <Tabs>
+      <Tab title="Store Info">
+        - Store name and description
+        - Contact email and phone
+        - Store address
+        - Logo and favicon
+      </Tab>
+      <Tab title="Payment">
+        Built-in payment methods:
+        - **Stripe** - Credit card processing
+        - **PayPal** - PayPal checkout
+        - **COD** - Cash on delivery
+      </Tab>
+      <Tab title="Shipping">
+        Configure shipping:
+        - Flat rate shipping
+        - Free shipping
+        - Table rate by weight/price
+        - Real-time carrier rates
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Test the Checkout Flow">
+    Place a test order to verify everything works:
+
+    1. Visit the storefront at [http://localhost:3000](http://localhost:3000)
+    2. Browse products and add items to cart
+    3. Proceed to checkout
+    4. Enter shipping information
+    5. Select shipping method
+    6. Choose payment method
+    7. Complete the order
+
+    <Tip>
+      Use Stripe's test card numbers for testing payments. See [Stripe Testing](https://stripe.com/docs/testing) for test card numbers.
+    </Tip>
+  </Step>
+</Steps>
+
+## Essential Commands
+
+Here are the Docker commands you'll use regularly:
+
+<CodeGroup>
+```bash Start Store
+# Start in background
+docker compose up -d
+
+# Start with logs visible
+docker compose up
+```
+
+```bash Stop Store
+# Stop services (data is preserved)
+docker compose stop
+
+# Stop and remove containers
+docker compose down
+```
+
+```bash View Logs
+# View app logs
+docker compose logs -f app
+
+# View database logs
+docker compose logs -f database
+
+# View all logs
+docker compose logs -f
+```
+
+```bash Restart Services
+# Restart everything
+docker compose restart
+
+# Restart just the app
+docker compose restart app
+```
+</CodeGroup>
+
+## Managing Admin Users
+
+Create additional admin users using the EverShop CLI:
+
+<Steps>
+  <Step title="Access Container">
+    Connect to the EverShop container:
+
+    ```bash
+    docker compose exec app sh
+    ```
+  </Step>
+
+  <Step title="Create Admin User">
+    Run the user creation command:
+
+    ```bash
+    npm run user:create
+    ```
+
+    Follow the prompts to enter:
+    - Full name
+    - Email address
+    - Password (minimum 8 characters with letters and numbers)
+  </Step>
+
+  <Step title="Change Password">
+    To change an existing admin password:
+
+    ```bash
+    npm run user:changePassword
+    ```
+
+    Enter the email address and new password.
+  </Step>
+</Steps>
+
+## Data Persistence
+
+Your data is stored in a Docker volume and persists between container restarts:
+
+```yaml docker-compose.yml
+volumes:
+  postgres-data:  # Database data persists here
+```
+
+<Info>
+  Running `docker compose down` stops containers but preserves data. Use `docker compose down -v` to remove volumes and delete all data.
+</Info>
+
+## Development vs Production
+
+This quickstart uses the production build. For development:
+
+<Tabs>
+  <Tab title="Development Mode">
+    For active development with hot reloading:
+
+    ```bash
+    # Clone the repository
+    git clone https://github.com/evershopcommerce/evershop.git
+    cd evershop
+
+    # Install dependencies
+    npm install
+
+    # Setup database
+    npm run setup
+
+    # Run in dev mode
+    npm run dev
+    ```
+
+    Development mode includes:
+    - Hot module replacement (HMR)
+    - Unminified code for debugging
+    - Webpack dev server
+    - React Fast Refresh
+  </Tab>
+  <Tab title="Production Mode">
+    The Docker image runs in production mode:
+
+    - Optimized and minified assets
+    - Production database settings
+    - No hot reloading
+    - Better performance
+  </Tab>
+</Tabs>
+
+## Customization
+
+Ready to customize your store?
+
+<CardGroup cols={2}>
+  <Card title="Create Extensions" icon="puzzle-piece" href="/extensions/creating-extensions">
+    Add custom functionality with extensions
+  </Card>
+  <Card title="Customize Theme" icon="palette" href="/themes/creating-themes">
+    Modify the look and feel of your store
+  </Card>
+  <Card title="GraphQL API" icon="arrow-right-arrow-left" href="/api/graphql/schema">
+    Build custom integrations with the API
+  </Card>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Deep dive into configuration options
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port 3000 already in use">
+    If port 3000 is occupied, modify the `docker-compose.yml`:
+
+    ```yaml
+    services:
+      app:
+        ports:
+          - 3001:3000  # Change left number to any available port
+    ```
+
+    Then access your store at `http://localhost:3001`
+  </Accordion>
+
+  <Accordion title="Database connection errors">
+    Ensure the database container is running:
+
+    ```bash
+    docker compose ps
+    ```
+
+    View database logs:
+    ```bash
+    docker compose logs database
+    ```
+
+    Restart both services:
+    ```bash
+    docker compose restart
+    ```
+  </Accordion>
+
+  <Accordion title="Container won't start">
+    Check for errors in the logs:
+
+    ```bash
+    docker compose logs app
+    ```
+
+    Common issues:
+    - Port conflicts (change port in docker-compose.yml)
+    - Insufficient disk space
+    - Docker daemon not running
+  </Accordion>
+
+  <Accordion title="Reset everything">
+    To start fresh with a clean database:
+
+    ```bash
+    # Stop and remove containers and volumes
+    docker compose down -v
+
+    # Start fresh
+    docker compose up -d
+    ```
+
+    <Warning>
+      This deletes all data including products, orders, and customers!
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<Steps>
+  <Step title="Learn the Architecture">
+    Understand how EverShop works:
+    - [Architecture Overview](/architecture/overview)
+    - [Module System](/architecture/modules)
+    - [GraphQL API](/api/overview)
+  </Step>
+
+  <Step title="Customize Your Store">
+    Make it your own:
+    - [Create Extensions](/extensions/getting-started)
+    - [Theme Development](/themes/getting-started)
+    - [Configuration](/configuration/overview)
+  </Step>
+
+  <Step title="Deploy to Production">
+    When ready to launch:
+    - [Production Deployment](/deployment/overview)
+    - [Performance Optimization](/deployment/performance)
+    - [Security Best Practices](/deployment/security)
+  </Step>
+</Steps>
+
+## Get Help
+
+<CardGroup cols={2}>
+  <Card title="Discord Community" icon="discord" href="https://discord.gg/GSzt7dt7RM">
+    Ask questions and get help from the community
+  </Card>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/evershopcommerce/evershop/issues">
+    Report bugs or request features
+  </Card>
+  <Card title="Documentation" icon="book" href="/introduction">
+    Browse the full documentation
+  </Card>
+  <Card title="Twitter/X" icon="twitter" href="https://twitter.com/evershopjs">
+    Follow for updates and tips
+  </Card>
+</CardGroup>
+
+<Tip>
+  Stuck or have questions? Join our [Discord community](https://discord.gg/GSzt7dt7RM) where developers help each other succeed with EverShop!
+</Tip>

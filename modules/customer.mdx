@@ -1,0 +1,421 @@
+---
+title: Customer Module
+description: Customer management, authentication, and customer accounts
+---
+
+The Customer module handles customer accounts, authentication, and customer-related functionality in EverShop.
+
+## Overview
+
+The Customer module provides:
+
+- **Customer Accounts** - Customer registration and profiles
+- **Authentication** - Login, logout, and session management
+- **Address Management** - Customer shipping and billing addresses
+- **Password Management** - Password reset and change
+- **Customer Groups** - Segment customers into groups
+- **Order History** - Customer order tracking
+
+## Module Structure
+
+```
+customer/
+├── api/                    # Customer API endpoints
+├── graphql/                # GraphQL types and resolvers
+│   ├── types/
+│   │   ├── Customer/      # Customer types
+│   │   └── Address/       # Address types
+├── migration/             # Database migrations
+├── pages/                 # Account pages
+├── services/              # Customer services
+└── bootstrap.js           # Module initialization
+```
+
+## GraphQL Types
+
+### Customer Type
+
+```graphql
+type Customer {
+  customerId: Int!
+  uuid: String!
+  status: Int!
+  email: String!
+  firstName: String
+  lastName: String
+  fullName: String
+  phone: String
+  groupId: ID
+  addresses: [CustomerAddress]
+  defaultBillingAddress: CustomerAddress
+  defaultShippingAddress: CustomerAddress
+  orders: OrderCollection
+}
+```
+
+### Customer Address Type
+
+```graphql
+type CustomerAddress implements Address {
+  customerAddressId: Int!
+  uuid: String!
+  fullName: String
+  telephone: String
+  address1: String
+  address2: String
+  city: String
+  province: String
+  provinceCode: String
+  postcode: String
+  country: Country!
+  isDefault: Boolean
+}
+```
+
+## Authentication
+
+### Customer Registration
+
+Customers can create accounts through:
+
+- Registration form on the storefront
+- Checkout process (optional account creation)
+- Admin panel (by administrators)
+
+```javascript
+// POST /api/customer/register
+await fetch('/api/customer/register', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'customer@example.com',
+    password: 'SecurePass123!',
+    firstName: 'John',
+    lastName: 'Doe'
+  })
+});
+```
+
+### Customer Login
+
+Authentication uses session-based login:
+
+```javascript
+// POST /api/customer/login
+await fetch('/api/customer/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'customer@example.com',
+    password: 'SecurePass123!'
+  })
+});
+```
+
+### Session Management
+
+Customer sessions are:
+
+- Stored in the database (`session` table)
+- Managed by `express-session`
+- Linked to the customer account
+- Persistent across page reloads
+
+### Password Security
+
+Passwords are secured using:
+
+- **bcrypt** hashing algorithm
+- **Salt rounds**: 10 (configurable)
+- **Minimum requirements**: Enforced in validation
+
+## Customer Accounts
+
+### Customer Profile
+
+Customers can manage their profile information:
+
+- Email address
+- First and last name
+- Phone number
+- Default addresses
+- Password
+
+### Account Dashboard
+
+The customer account dashboard provides:
+
+- Order history
+- Address book
+- Account information
+- Password change
+
+## Address Management
+
+### Adding Addresses
+
+Customers can save multiple addresses:
+
+```javascript
+// POST /api/customer/addresses
+await fetch('/api/customer/addresses', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    fullName: 'John Doe',
+    telephone: '555-0123',
+    address1: '123 Main St',
+    city: 'Springfield',
+    province: 'IL',
+    postcode: '62701',
+    country: 'US',
+    isDefault: true
+  })
+});
+```
+
+### Default Addresses
+
+Customers can set:
+
+- **Default shipping address** - Used for new orders
+- **Default billing address** - Used for payments
+
+Addresses can serve as both shipping and billing.
+
+### Address Validation
+
+Address validation includes:
+
+- Required fields check
+- Country/province validation
+- Postal code format (basic)
+- Phone number format
+
+## Password Management
+
+### Password Reset
+
+The password reset flow:
+
+<Steps>
+  <Step title="Request Reset">
+    Customer enters email address
+  </Step>
+  <Step title="Email Sent">
+    Reset link sent to customer email
+  </Step>
+  <Step title="Reset Password">
+    Customer clicks link and enters new password
+  </Step>
+  <Step title="Confirmation">
+    Password updated, customer can log in
+  </Step>
+</Steps>
+
+```javascript
+// POST /api/customer/forgotPassword
+await fetch('/api/customer/forgotPassword', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'customer@example.com'
+  })
+});
+```
+
+### Change Password
+
+Logged-in customers can change their password:
+
+```javascript
+// POST /api/customer/changePassword
+await fetch('/api/customer/changePassword', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    currentPassword: 'OldPass123!',
+    newPassword: 'NewSecurePass456!'
+  })
+});
+```
+
+## Customer Groups
+
+Customer groups allow segmentation:
+
+- **General** - Default customer group
+- **Wholesale** - Wholesale customers
+- **VIP** - Premium customers
+- **Custom groups** - Create custom segments
+
+Groups can be used for:
+
+- Pricing rules
+- Promotions
+- Access control
+
+## Database Schema
+
+The Customer module defines:
+
+- `customer` - Customer account data
+- `customer_address` - Customer addresses
+- `customer_group` - Customer segmentation
+
+## GraphQL Queries
+
+### Get Current Customer
+
+```graphql
+query {
+  currentCustomer {
+    customerId
+    email
+    fullName
+    defaultShippingAddress {
+      fullName
+      address1
+      city
+      province
+      country {
+        name
+      }
+    }
+    orders {
+      items {
+        orderId
+        orderNumber
+        grandTotal
+        orderDate
+      }
+    }
+  }
+}
+```
+
+### Get Customer (Admin)
+
+```graphql
+query {
+  customer(id: 123) {
+    customerId
+    email
+    fullName
+    status
+    createdAt
+    orders {
+      total
+      items {
+        orderId
+        orderNumber
+      }
+    }
+  }
+}
+```
+
+## Customer Services
+
+The Customer module exports these services:
+
+```typescript
+import { 
+  createCustomer, 
+  updateCustomer,
+  deleteCustomer,
+  updatePassword
+} from '@evershop/evershop/customer/services';
+
+// Create customer
+const customer = await createCustomer({
+  email: 'new@example.com',
+  password: 'SecurePass123!',
+  firstName: 'Jane',
+  lastName: 'Smith'
+});
+
+// Update customer
+await updateCustomer(customerId, {
+  firstName: 'Jane',
+  lastName: 'Doe'
+});
+
+// Update password
+await updatePassword(customerId, 'NewPassword456!');
+```
+
+## Admin Customer Management
+
+Administrators can:
+
+- View all customers
+- Create customer accounts
+- Edit customer information
+- Reset customer passwords
+- Disable customer accounts
+- View customer order history
+- Manage customer groups
+
+## Best Practices
+
+<Note>
+  **Email Verification**: Consider implementing email verification for new customer accounts to prevent fake registrations.
+</Note>
+
+<Warning>
+  **Password Requirements**: Enforce strong password requirements (minimum length, complexity) to protect customer accounts.
+</Warning>
+
+<Tip>
+  **Guest Checkout**: Allow guest checkout to reduce friction, but offer account creation after order completion.
+</Tip>
+
+## Privacy & Security
+
+### Data Protection
+
+- Passwords are hashed with bcrypt
+- Sensitive data is encrypted
+- Session tokens are secure and http-only
+- GDPR compliance considerations
+
+### Account Security
+
+- Failed login attempt tracking
+- Session timeout configuration
+- Secure password reset process
+- Email confirmation for sensitive changes
+
+## API Endpoints
+
+Key customer API endpoints:
+
+- `POST /api/customer/register` - Customer registration
+- `POST /api/customer/login` - Customer login
+- `POST /api/customer/logout` - Customer logout
+- `GET /api/customer/me` - Get current customer
+- `PATCH /api/customer/:id` - Update customer
+- `POST /api/customer/addresses` - Add address
+- `PATCH /api/customer/addresses/:id` - Update address
+- `DELETE /api/customer/addresses/:id` - Delete address
+- `POST /api/customer/forgotPassword` - Request password reset
+- `POST /api/customer/resetPassword` - Reset password
+- `POST /api/customer/changePassword` - Change password
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Customer Services API" icon="code" href="/api/services/customer">
+    Learn about the Customer services API
+  </Card>
+  <Card title="Authentication" icon="lock" href="/core-concepts/middleware">
+    Understanding authentication middleware
+  </Card>
+  <Card title="Orders Module" icon="receipt" href="/modules/orders">
+    Customer order management
+  </Card>
+  <Card title="GraphQL Queries" icon="diagram-project" href="/api/graphql/queries">
+    Customer GraphQL queries
+  </Card>
+</CardGroup>

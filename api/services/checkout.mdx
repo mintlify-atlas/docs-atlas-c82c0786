@@ -1,0 +1,418 @@
+---
+title: "Checkout Services"
+description: "Checkout module services for cart and order management"
+---
+
+The Checkout module provides services for managing shopping carts, checkout process, and order creation.
+
+## Cart Management
+
+### Cart
+
+The Cart class represents a shopping cart with items and related data.
+
+```javascript
+import { Cart } from '@evershop/evershop/src/modules/checkout/services';
+
+// Cart instance provides methods for cart manipulation
+const cart = await getMyCart(sessionId, customerId);
+```
+
+**Key Methods:**
+- `getItems()`: Get all cart items
+- `getItem(uuid)`: Get specific item by UUID
+- `createItem(productId, qty)`: Create a new cart item
+- `getData(key)`: Get cart data by key
+- `setData(key, value)`: Set cart data
+- `export()`: Export full cart data
+- `exportData()`: Export cart data for database
+
+---
+
+### Item
+
+The Item class represents a single cart item.
+
+```javascript
+import { Item } from '@evershop/evershop/src/modules/checkout/services';
+
+// Item instance provides methods for item manipulation
+```
+
+**Key Methods:**
+- `getData(key)`: Get item data by key
+- `setData(key, value)`: Set item data
+- `export()`: Export item data
+- `hasError()`: Check if item has errors
+- `getErrors()`: Get item validation errors
+
+---
+
+### getMyCart
+
+Retrieves the current active cart by session ID and optional customer ID.
+
+```javascript
+import { getMyCart } from '@evershop/evershop/src/modules/checkout/services';
+
+const cart = await getMyCart('session-id', customerId);
+
+if (cart) {
+  console.log('Cart items:', cart.getItems().length);
+  console.log('Cart total:', cart.getData('grand_total'));
+}
+```
+
+**Parameters:**
+- `sid` (string): Session ID
+- `customerId` (number, optional): Customer ID for retrieving abandoned carts
+
+**Returns:** Promise resolving to Cart instance or null if no cart found
+
+**Behavior:**
+- First attempts to find cart by session ID
+- If not found and customer ID provided, looks for abandoned cart
+- Updates abandoned cart with current session ID if found
+
+---
+
+### createNewCart
+
+Creates a new empty cart.
+
+```javascript
+import { createNewCart } from '@evershop/evershop/src/modules/checkout/services';
+
+const cart = await createNewCart({
+  sid: 'session-id',
+  customer_id: 123,
+  currency: 'USD'
+});
+```
+
+**Parameters:**
+- `data` (object): Initial cart data
+  - `sid` (string): Session ID
+  - `customer_id` (number, optional): Customer ID
+  - `currency` (string): Currency code
+
+**Returns:** Promise resolving to new Cart instance
+
+---
+
+### getCartByUUID
+
+Retrieves a cart by its UUID.
+
+```javascript
+import { getCartByUUID } from '@evershop/evershop/src/modules/checkout/services';
+
+const cart = await getCartByUUID('cart-uuid');
+```
+
+**Parameters:**
+- `uuid` (string): Cart UUID
+
+**Returns:** Promise resolving to Cart instance or null
+
+---
+
+### addCartItem
+
+Adds a product to the cart.
+
+```javascript
+import { addCartItem } from '@evershop/evershop/src/modules/checkout/services';
+
+const item = await addCartItem(
+  cart,
+  productId,
+  3,  // quantity
+  {}  // context
+);
+
+console.log('Added item:', item.getData('product_name'));
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance
+- `productID` (number): Product ID to add
+- `qty` (number|string): Quantity to add
+- `context` (object): Context object for hooks
+
+**Returns:** Promise resolving to the added Item instance
+
+**Behavior:**
+- Validates product availability and quantity
+- Checks for duplicate items and merges quantities
+- Runs validation hooks before adding
+- Throws error if validation fails
+
+---
+
+### updateCartItemQty
+
+Updates the quantity of a cart item.
+
+```javascript
+import { updateCartItemQty } from '@evershop/evershop/src/modules/checkout/services';
+
+const updatedItem = await updateCartItemQty(
+  cart,
+  'item-uuid',
+  5  // new quantity
+);
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance
+- `itemUuid` (string): Item UUID
+- `qty` (number): New quantity
+
+**Returns:** Promise resolving to updated Item instance
+
+---
+
+### removeCartItem
+
+Removes an item from the cart.
+
+```javascript
+import { removeCartItem } from '@evershop/evershop/src/modules/checkout/services';
+
+await removeCartItem(cart, 'item-uuid');
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance
+- `itemUuid` (string): Item UUID to remove
+
+**Returns:** Promise resolving when item is removed
+
+---
+
+### saveCart
+
+Persists cart data to the database.
+
+```javascript
+import { saveCart } from '@evershop/evershop/src/modules/checkout/services';
+
+const cartId = await saveCart(cart);
+
+if (cartId) {
+  console.log('Cart saved with ID:', cartId);
+}
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance to save
+
+**Returns:** Promise resolving to cart ID or null if cart is empty
+
+**Behavior:**
+- Deletes cart if no items remain
+- Creates new cart record or updates existing
+- Synchronizes cart items with database
+- Removes deleted items from database
+
+---
+
+## Address Management
+
+### addShippingAddress
+
+Adds or updates shipping address for the cart.
+
+```javascript
+import { addShippingAddress } from '@evershop/evershop/src/modules/checkout/services';
+
+await addShippingAddress(cart, {
+  full_name: 'John Doe',
+  address_1: '123 Main St',
+  city: 'New York',
+  province: 'NY',
+  postcode: '10001',
+  country: 'US',
+  telephone: '555-1234'
+});
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance
+- `address` (object): Shipping address data
+  - `full_name` (string): Recipient name
+  - `address_1` (string): Address line 1
+  - `address_2` (string, optional): Address line 2
+  - `city` (string): City
+  - `province` (string): State/Province
+  - `postcode` (string): Postal code
+  - `country` (string): Country code
+  - `telephone` (string): Phone number
+
+**Returns:** Promise resolving when address is saved
+
+---
+
+### addBillingAddress
+
+Adds or updates billing address for the cart.
+
+```javascript
+import { addBillingAddress } from '@evershop/evershop/src/modules/checkout/services';
+
+await addBillingAddress(cart, {
+  full_name: 'John Doe',
+  address_1: '123 Main St',
+  city: 'New York',
+  province: 'NY',
+  postcode: '10001',
+  country: 'US',
+  telephone: '555-1234'
+});
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance
+- `address` (object): Billing address data (same structure as shipping)
+
+**Returns:** Promise resolving when address is saved
+
+---
+
+## Payment & Shipping
+
+### getAvailablePaymentMethods
+
+Retrieves available payment methods for the cart.
+
+```javascript
+import { getAvailablePaymentMethods } from '@evershop/evershop/src/modules/checkout/services';
+
+const methods = await getAvailablePaymentMethods(cart);
+
+methods.forEach(method => {
+  console.log(method.code, method.name);
+});
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance
+
+**Returns:** Promise resolving to array of payment method objects
+
+---
+
+### getAvailableShippingMethods
+
+Retrieves available shipping methods for the cart.
+
+```javascript
+import { getAvailableShippingMethods } from '@evershop/evershop/src/modules/checkout/services';
+
+const methods = await getAvailableShippingMethods(cart);
+
+methods.forEach(method => {
+  console.log(method.code, method.name, method.cost);
+});
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance
+
+**Returns:** Promise resolving to array of shipping method objects
+
+---
+
+## Order Creation
+
+### createOrder
+
+Creates an order from a cart.
+
+```javascript
+import { createOrder } from '@evershop/evershop/src/modules/checkout/services';
+
+try {
+  const order = await createOrder(cart);
+  
+  console.log('Order created:', order.order_number);
+  console.log('Order UUID:', order.uuid);
+  console.log('Order total:', order.grand_total);
+} catch (error) {
+  console.error('Order creation failed:', error.message);
+}
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance to create order from
+
+**Returns:** Promise resolving to created order object with:
+- `order_id` (number): Order ID
+- `uuid` (string): Order UUID
+- `order_number` (number): Human-readable order number
+- `grand_total` (number): Order total
+- `status` (string): Order status
+- `payment_status` (string): Payment status
+- `shipment_status` (string): Shipment status
+
+**Process:**
+1. Validates cart data (addresses, items, payment method)
+2. Creates order record with addresses
+3. Copies cart items to order items
+4. Adds order activity log
+5. Disables the cart
+6. Commits transaction or rolls back on error
+
+**Throws:** Error if validation fails or database transaction fails
+
+---
+
+### orderValidator
+
+Validates cart before order creation.
+
+```javascript
+import { orderValidator } from '@evershop/evershop/src/modules/checkout/services';
+
+const validation = await orderValidator(cart);
+
+if (!validation.valid) {
+  console.error('Validation errors:', validation.errors);
+}
+```
+
+**Parameters:**
+- `cart` (Cart): Cart instance to validate
+
+**Returns:** Promise resolving to validation result object:
+- `valid` (boolean): Validation status
+- `errors` (array): Array of error messages
+
+**Validates:**
+- Cart has items
+- Billing address is present
+- Shipping address is present (if required)
+- Payment method is selected
+- All items are in stock
+
+---
+
+## Utility Services
+
+### toPrice
+
+Formats a number as a price string.
+
+```javascript
+import { toPrice } from '@evershop/evershop/src/modules/checkout/services';
+
+const formatted = toPrice(99.99, 'USD');
+console.log(formatted); // "$99.99"
+```
+
+**Parameters:**
+- `amount` (number): Amount to format
+- `currency` (string): Currency code
+
+**Returns:** Formatted price string

@@ -1,0 +1,328 @@
+---
+title: Module System
+description: How EverShop modules work, module structure, and the bootstrap process
+---
+
+## What is a Module?
+
+A module in EverShop is a self-contained package of functionality that can include:
+
+- API endpoints
+- Page routes (admin and frontend)
+- GraphQL types and resolvers
+- Event subscribers
+- React components
+- Services and business logic
+- Database migrations
+
+<Info>
+Modules are the primary way to organize and extend functionality in EverShop. Both core features and extensions are implemented as modules.
+</Info>
+
+## Module Structure
+
+### Directory Layout
+
+A complete module structure looks like this:
+
+```
+modules/catalog/
+├── bootstrap.js              # Module initialization
+├── package.json             # Optional: module metadata
+├── api/                     # REST API endpoints
+│   └── createProduct/
+│       ├── route.json       # Route configuration
+│       ├── [auth]validate.js # Middleware (runs after auth)
+│       └── createProduct.js  # Handler
+├── pages/                   # UI pages
+│   ├── admin/              # Admin pages
+│   │   └── productEdit/
+│   │       ├── route.json
+│   │       └── *.js
+│   ├── frontStore/         # Frontend pages
+│   │   └── productView/
+│   │       ├── route.json
+│   │       └── *.js
+│   └── global/             # App-level middleware
+│       └── auth.js
+├── graphql/                # GraphQL schema
+│   └── types/
+│       └── Product/
+│           ├── Product.graphql         # Type definition
+│           ├── Product.resolvers.js    # Resolvers
+│           ├── Product.admin.graphql   # Admin-only types
+│           └── Product.admin.resolvers.js
+├── services/               # Business logic
+│   └── productService.js
+├── subscribers/            # Event handlers
+│   ├── product_created/
+│   │   └── buildUrlRewrite.ts
+│   └── product_updated/
+│       └── updateSearchIndex.js
+└── components/             # React components
+    └── ProductCard.js
+```
+
+## Bootstrap Process
+
+The `bootstrap.js` file is executed when the module is loaded. This is where you:
+
+1. Register processors
+2. Set default configuration
+3. Register widgets
+4. Extend schemas
+
+### Example: Base Module Bootstrap
+
+```javascript packages/evershop/src/modules/base/bootstrap.js
+import { loadCsv } from '../../lib/locale/translate/translate.js';
+import { merge } from '../../lib/util/merge.js';
+import { addProcessor } from '../../lib/util/registry.js';
+
+export default async () => {
+  await loadCsv();
+  addProcessor('configurationSchema', (schema) => {
+    merge(schema, {
+      properties: {
+        shop: {
+          type: 'object',
+          properties: {
+            homeUrl: { type: 'string', format: 'uri' },
+            weightUnit: { type: 'string' },
+            currency: { type: 'string' },
+            language: { type: 'string' },
+            timezone: { type: 'string' }
+          }
+        },
+        system: {
+          type: 'object',
+          properties: {
+            extensions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  resolve: { type: 'string' },
+                  enabled: { type: 'boolean' },
+                  priority: { type: 'number' }
+                },
+                required: ['name', 'enabled', 'resolve']
+              }
+            }
+          }
+        }
+      }
+    });
+    return schema;
+  });
+};
+```
+
+### Example: Catalog Module Bootstrap
+
+```javascript packages/evershop/src/modules/catalog/bootstrap.js
+import config from 'config';
+import { addProcessor } from '../../lib/util/registry.js';
+import { registerWidget } from '../../lib/widget/widgetManager.js';
+
+export default () => {
+  // Register processors for cart items
+  addProcessor('cartItemFields', registerCartItemProductUrlField, 0);
+  addProcessor('cartItemFields', registerCartItemVariantOptionsField, 0);
+  
+  // Set default configuration
+  const defaultCatalogConfig = {
+    product: {
+      image: { width: 1200, height: 1200 }
+    },
+    showOutOfStockProduct: false,
+    collectionPageSize: 20
+  };
+  config.util.setModuleDefaults('catalog', defaultCatalogConfig);
+  
+  // Register collection filters
+  addProcessor(
+    'productCollectionFilters',
+    registerDefaultProductCollectionFilters,
+    1
+  );
+  
+  // Register widgets
+  registerWidget({
+    type: 'collection_products',
+    name: 'Collection products',
+    description: 'A list of products from a collection',
+    settingComponent: path.resolve(
+      CONSTANTS.MODULESPATH,
+      'catalog/components/CollectionProductsSetting.js'
+    ),
+    component: path.resolve(
+      CONSTANTS.MODULESPATH,
+      'catalog/components/CollectionProducts.js'
+    ),
+    defaultSettings: {
+      collection: null,
+      count: 4,
+      countPerRow: 4
+    },
+    enabled: true
+  });
+};
+```
+
+## Module Loading
+
+Modules are loaded in this order:
+
+1. **Discovery**: Core modules and enabled extensions are identified
+2. **Bootstrap**: Each module's `bootstrap.js` is executed
+3. **Route scanning**: Routes are discovered from `api/` and `pages/` directories
+4. **Middleware loading**: Middleware functions are parsed and sorted
+5. **GraphQL schema building**: Types and resolvers are merged
+6. **Event subscribers**: Subscribers are registered for event handling
+
+### Module Discovery
+
+Core modules are automatically discovered from:
+
+```javascript packages/evershop/src/lib/router/loadModuleRoutes.js
+const modulePath = 'packages/evershop/src/modules/catalog';
+
+// Load routes from pages/admin/
+if (existsSync(path.resolve(modulePath, 'pages', 'admin'))) {
+  const adminControllerRoutes = scanForRoutes(
+    path.resolve(modulePath, 'pages', 'admin'),
+    true,  // isAdmin
+    false  // isApi
+  );
+}
+
+// Load routes from pages/frontStore/
+if (existsSync(path.resolve(modulePath, 'pages', 'frontStore'))) {
+  const frontStoreControllerRoutes = scanForRoutes(
+    path.resolve(modulePath, 'pages', 'frontStore'),
+    false,  // isAdmin
+    false   // isApi
+  );
+}
+
+// Load API routes from api/
+if (existsSync(path.resolve(modulePath, 'api'))) {
+  const routes = scanForRoutes(
+    path.resolve(modulePath, 'api'),
+    false,  // isAdmin
+    true    // isApi
+  );
+}
+```
+
+## Using Processors
+
+Processors are hooks that allow modules to modify data at specific points:
+
+```javascript
+import { addProcessor } from '@evershop/evershop/src/lib/util/registry.js';
+
+// Add a processor
+addProcessor('processorName', (data) => {
+  // Transform data
+  return modifiedData;
+}, priority);
+```
+
+Common processor hooks:
+
+- `configurationSchema` - Extend configuration validation
+- `cartItemFields` - Add fields to cart items
+- `productCollectionFilters` - Add product filters
+- `categoryCollectionFilters` - Add category filters
+- `attributeCollectionFilters` - Add attribute filters
+
+<Note>
+Processors are executed in order of priority (lower numbers first). Use priority to control when your processor runs relative to others.
+</Note>
+
+## Module Dependencies
+
+Modules can depend on other modules implicitly through:
+
+1. **Import paths**: Importing from other modules
+2. **Event system**: Subscribing to events from other modules
+3. **Processors**: Extending data from other modules
+4. **Configuration**: Reading config set by other modules
+
+<Warning>
+There is no explicit dependency declaration. Ensure required modules are enabled before depending on them.
+</Warning>
+
+## Creating Extensions
+
+Extensions follow the same structure as core modules:
+
+```
+extensions/my-extension/
+├── package.json
+├── bootstrap.js
+├── api/
+├── pages/
+├── graphql/
+└── subscribers/
+```
+
+Enable extensions in your configuration:
+
+```json config/default.json
+{
+  "system": {
+    "extensions": [
+      {
+        "name": "my-extension",
+        "resolve": "extensions/my-extension",
+        "enabled": true,
+        "priority": 10
+      }
+    ]
+  }
+}
+```
+
+## Module Lifecycle
+
+1. **Initialization**: `bootstrap.js` executes
+2. **Route registration**: Routes are added to the router
+3. **Middleware loading**: Middleware files are scanned and registered
+4. **Schema building**: GraphQL schemas are merged
+5. **Runtime**: Requests are handled by middleware chains
+6. **Event processing**: Events trigger subscribers
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep modules focused">
+    Each module should have a single responsibility. For example, the `catalog` module handles products, categories, and collections, but not checkout logic.
+  </Accordion>
+  
+  <Accordion title="Use bootstrap.js for initialization only">
+    Don't perform heavy operations in bootstrap. Use it for configuration, registering processors, and setting defaults.
+  </Accordion>
+  
+  <Accordion title="Organize by feature, not by type">
+    Group related functionality together. For example, all product-related GraphQL types should be in `catalog/graphql/types/Product/`.
+  </Accordion>
+  
+  <Accordion title="Leverage the event system">
+    Use events for loose coupling between modules. Instead of directly calling another module's code, emit an event.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Routing" icon="route" href="/core-concepts/routing">
+    Learn how to configure routes in your module
+  </Card>
+  <Card title="GraphQL" icon="diagram-project" href="/core-concepts/graphql">
+    Set up GraphQL types and resolvers
+  </Card>
+</CardGroup>

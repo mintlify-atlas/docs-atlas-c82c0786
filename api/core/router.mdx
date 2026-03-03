@@ -1,0 +1,406 @@
+---
+title: Router API
+description: Route registration and management for admin and storefront routes
+---
+
+## Overview
+
+EverShop's Router API provides a centralized system for registering and managing routes for both the admin panel and storefront. Routes are automatically discovered from module directories and can be dynamically registered.
+
+## Router Class
+
+The core router singleton manages all application routes.
+
+**Location:** `packages/evershop/src/lib/router/Router.js:3`
+
+### Router Methods
+
+#### addRoute()
+
+Add or update a route in the router.
+
+```javascript
+import { addRoute } from '@evershop/evershop/src/lib/router/Router';
+
+addRoute({
+  id: 'productList',
+  method: 'GET',
+  path: '/products',
+  isAdmin: false,
+  isApi: false
+});
+```
+
+**Location:** `packages/evershop/src/lib/router/Router.js:43`
+
+##### Parameters
+
+<ParamField path="route" type="object" required>
+  <Expandable title="properties">
+    <ParamField path="id" type="string" required>
+      Unique identifier for the route
+    </ParamField>
+    <ParamField path="method" type="string | string[]" required>
+      HTTP method(s): `'GET'`, `'POST'`, `'PUT'`, `'DELETE'`, or array like `['GET', 'POST']`
+    </ParamField>
+    <ParamField path="path" type="string" required>
+      URL path for the route
+    </ParamField>
+    <ParamField path="isAdmin" type="boolean" required>
+      Whether this is an admin route
+    </ParamField>
+    <ParamField path="isApi" type="boolean" default="false">
+      Whether this is an API route
+    </ParamField>
+    <ParamField path="name" type="string">
+      Human-readable name for the route
+    </ParamField>
+    <ParamField path="folder" type="string">
+      Module folder path
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### hasRoute()
+
+Check if a route exists by ID.
+
+```javascript
+import { hasRoute } from '@evershop/evershop/src/lib/router/Router';
+
+if (hasRoute('productList')) {
+  console.log('Route exists');
+}
+```
+
+**Location:** `packages/evershop/src/lib/router/Router.js:47`
+
+##### Signature
+
+```javascript
+function hasRoute(id: string): boolean
+```
+
+#### getRoutes()
+
+Get all routes sorted by priority.
+
+```javascript
+import { getRoutes } from '@evershop/evershop/src/lib/router/Router';
+
+const routes = getRoutes();
+```
+
+**Location:** `packages/evershop/src/lib/router/Router.js:46`
+
+##### Returns
+
+Array of all routes sorted by their URL path specificity (more specific routes first).
+
+#### getRoute()
+
+Get a specific route by ID.
+
+```javascript
+import { getRoute } from '@evershop/evershop/src/lib/router/Router';
+
+const route = getRoute('productList');
+```
+
+**Location:** `packages/evershop/src/lib/router/Router.js:49`
+
+#### getFrontStoreRoutes()
+
+Get all storefront routes.
+
+```javascript
+import { getFrontStoreRoutes } from '@evershop/evershop/src/lib/router/Router';
+
+const storeRoutes = getFrontStoreRoutes();
+```
+
+**Location:** `packages/evershop/src/lib/router/Router.js:44`
+
+#### getAdminRoutes()
+
+Get all admin routes.
+
+```javascript
+import { getAdminRoutes } from '@evershop/evershop/src/lib/router/Router';
+
+const adminRoutes = getAdminRoutes();
+```
+
+**Location:** `packages/evershop/src/lib/router/Router.js:45`
+
+#### deleteRoute()
+
+Remove a route by ID.
+
+```javascript
+import { deleteRoute } from '@evershop/evershop/src/lib/router/Router';
+
+deleteRoute('productList');
+```
+
+**Location:** `packages/evershop/src/lib/router/Router.js:48`
+
+#### empty()
+
+Clear all routes from the router.
+
+```javascript
+import { empty } from '@evershop/evershop/src/lib/router/Router';
+
+empty();
+```
+
+**Location:** `packages/evershop/src/lib/router/Router.js:50`
+
+## Route Registration
+
+### registerFrontStoreRoute()
+
+Register a storefront route.
+
+```javascript
+import { registerFrontStoreRoute } from '@evershop/evershop/src/lib/router/registerFrontStoreRoute';
+
+registerFrontStoreRoute(
+  'productList',           // id
+  'GET',                   // method
+  '/products',             // path
+  'Product List',          // name
+  false,                   // isApi
+  '/modules/catalog/pages', // folder
+  null,                    // payloadSchema
+  'public'                 // access: 'public' or 'private'
+);
+```
+
+**Location:** `packages/evershop/src/lib/router/registerFrontStoreRoute.js:11`
+
+#### Signature
+
+```javascript
+function registerFrontStoreRoute(
+  id: string,
+  method: string | string[],
+  path: string,
+  name: string,
+  isApi?: boolean,
+  folder?: string,
+  payloadSchema?: object | null,
+  access?: 'public' | 'private'
+): void
+```
+
+#### Parameters
+
+<ParamField path="id" type="string" required>
+  Unique route identifier
+</ParamField>
+
+<ParamField path="method" type="string | string[]" required>
+  HTTP method(s)
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  URL path (will be used as-is for storefront)
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Display name for the route
+</ParamField>
+
+<ParamField path="isApi" type="boolean" default="false">
+  Whether this is an API endpoint
+</ParamField>
+
+<ParamField path="folder" type="string" default="''">
+  Module folder path
+</ParamField>
+
+<ParamField path="payloadSchema" type="object" default="null">
+  JSON schema for request payload validation
+</ParamField>
+
+<ParamField path="access" type="string" default="'private'">
+  Access control: `'public'` or `'private'`
+</ParamField>
+
+### registerAdminRoute()
+
+Register an admin panel route.
+
+```javascript
+import { registerAdminRoute } from '@evershop/evershop/src/lib/router/registerAdminRoute';
+
+registerAdminRoute(
+  'adminProductList',      // id
+  'GET',                   // method
+  '/products',             // path (will become /admin/products)
+  'Product Management',    // name
+  false,                   // isApi
+  '/modules/catalog/pages' // folder
+);
+```
+
+**Location:** `packages/evershop/src/lib/router/registerAdminRoute.js:11`
+
+#### Signature
+
+```javascript
+function registerAdminRoute(
+  id: string,
+  method: string | string[],
+  path: string,
+  name: string,
+  isApi?: boolean,
+  folder?: string
+): void
+```
+
+#### Path Transformation
+
+Admin routes automatically prefix paths with `/admin`:
+
+```javascript
+registerAdminRoute('dashboard', 'GET', '/', 'Dashboard');
+// Actual path: /admin
+
+registerAdminRoute('products', 'GET', '/products', 'Products');
+// Actual path: /admin/products
+```
+
+**Implementation:** `packages/evershop/src/lib/router/registerAdminRoute.js:27`
+
+## Route File Convention
+
+Routes are automatically discovered from module directories:
+
+### File Naming Pattern
+
+```
+[method][routeName][status].js
+```
+
+Examples:
+- `[GET]products[200].js` - GET /products
+- `[POST]checkout[200].js` - POST /checkout
+- `[PUT]product[id][200].js` - PUT /product/:id
+
+### Directory Structure
+
+```
+modules/
+└── catalog/
+    └── pages/
+        ├── frontStore/
+        │   ├── [GET]products[200].js
+        │   └── [GET]product[slug][200].js
+        └── admin/
+            ├── [GET]productGrid[200].js
+            └── [POST]productSave[200].js
+```
+
+## Route Parameters
+
+Dynamic route parameters use bracket notation:
+
+```javascript
+// Route file: [GET]product[id][200].js
+registerFrontStoreRoute(
+  'productDetail',
+  'GET',
+  '/product/:id',
+  'Product Detail'
+);
+
+// Accessing parameter in handler:
+export default async function handler(request, response) {
+  const { id } = request.params;
+  // ...
+}
+```
+
+## API Routes
+
+API routes return JSON instead of rendering pages:
+
+```javascript
+registerFrontStoreRoute(
+  'apiProductSearch',
+  'POST',
+  '/api/products/search',
+  'Product Search API',
+  true  // isApi = true
+);
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Unique Route IDs">
+    Route IDs must be unique across the entire application. Use descriptive, namespaced IDs like `catalogProductList`.
+  </Step>
+  
+  <Step title="Follow Naming Conventions">
+    Use the file naming pattern `[METHOD]routeName[status].js` for auto-discovery.
+  </Step>
+  
+  <Step title="Organize by Module">
+    Keep routes in their respective module directories under `pages/frontStore/` or `pages/admin/`.
+  </Step>
+  
+  <Step title="Specify HTTP Methods Correctly">
+    Use appropriate HTTP methods: GET for retrieval, POST for creation, PUT for updates, DELETE for removal.
+  </Step>
+  
+  <Step title="Use Access Control">
+    Set `access: 'public'` for public pages, `'private'` for authenticated-only routes.
+  </Step>
+  
+  <Step title="Document API Routes">
+    Mark API endpoints with `isApi: true` for proper handling and documentation.
+  </Step>
+</Steps>
+
+## Example: Complete Route Setup
+
+```javascript
+// modules/catalog/pages/frontStore/[GET]products[200].js
+import { registerFrontStoreRoute } from '@evershop/evershop/src/lib/router/registerFrontStoreRoute';
+
+// Register route
+registerFrontStoreRoute(
+  'catalogProductList',
+  'GET',
+  '/products',
+  'Product Listing',
+  false,  // Not an API route
+  __dirname,
+  null,
+  'public'  // Public access
+);
+
+// Route handler
+export default async function productList(request, response) {
+  // Your route logic
+  const products = await getProducts();
+  
+  return {
+    products
+  };
+}
+
+// Page component
+export const ProductListPage = () => {
+  return (
+    <div>
+      <h1>Products</h1>
+      {/* Product listing UI */}
+    </div>
+  );
+};
+```

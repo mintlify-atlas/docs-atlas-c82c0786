@@ -1,0 +1,645 @@
+---
+title: Event System
+description: Understanding EverShop's event emitters, subscribers, and asynchronous event processing
+---
+
+## Overview
+
+EverShop uses an **asynchronous, database-backed event system** that allows modules to communicate without tight coupling. Events are emitted to a database queue and processed by a separate event manager process.
+
+## Architecture
+
+The event system consists of three main components:
+
+1. **Emitter** - Inserts events into the database
+2. **Event Manager** - Background process that polls for new events
+3. **Subscribers** - Functions that handle specific events
+
+```
+┌─────────────┐         ┌──────────┐         ┌─────────────┐
+│   Emitter   │────────▶│ Database │◀────────│Event Manager│
+└─────────────┘  INSERT  └──────────┘  POLL   └─────────────┘
+                                                      │
+                                                      │ EXECUTE
+                                                      ▼
+                                              ┌─────────────┐
+                                              │ Subscribers │
+                                              └─────────────┘
+```
+
+<Info>
+Events are persisted to the database, making them durable and resilient to crashes. If the event manager crashes, events are not lost.
+</Info>
+
+## Emitting Events
+
+### Basic Event Emission
+
+```typescript packages/evershop/src/lib/event/emitter.ts
+import { emit } from '@evershop/evershop/src/lib/event/emitter';
+
+// Emit an event
+await emit('product_created', {
+  product: {
+    productId: 123,
+    name: 'New Product',
+    sku: 'PROD-123'
+  }
+});
+```
+
+### Emitter Implementation
+
+```typescript packages/evershop/src/lib/event/emitter.ts
+import { insert } from '@evershop/postgres-query-builder';
+import { EventDataRegistry, EventName } from '../../types/event.js';
+import { pool } from '../postgres/connection.js';
+
+/**
+ * Emit a typed event. The event data type is inferred from the event name.
+ */
+export async function emit<T extends EventName>(
+  name: T,
+  data: EventDataRegistry[T]
+): Promise<void>;
+
+/**
+ * Emit an untyped event. Use this for dynamic events that aren't registered.
+ */
+export async function emit(
+  name: string,
+  data: Record<string, any>
+): Promise<void>;
+
+// Implementation
+export async function emit(name: string, data: Record<string, any>) {
+  await insert('event')
+    .given({
+      name,
+      data
+    })
+    .execute(pool);
+}
+```
+
+<Note>
+Events are inserted into the `event` table with the event name and data payload. The event manager picks them up asynchronously.
+</Note>
+
+## Creating Subscribers
+
+### Subscriber Directory Structure
+
+Subscribers are organized by event name:
+
+```
+modules/catalog/subscribers/
+├── product_created/
+│   ├── buildUrlRewrite.ts
+│   └── updateSearchIndex.js
+├── product_updated/
+│   └── updateSearchIndex.js
+└── product_deleted/
+    └── cleanupRelated.js
+```
+
+### Basic Subscriber
+
+```javascript modules/catalog/subscribers/product_created/buildUrlRewrite.ts
+import { insert } from '@evershop/postgres-query-builder';
+import { pool } from '@evershop/evershop/src/lib/postgres/connection';
+import { buildUrl } from '@evershop/evershop/src/lib/router/buildUrl';
+
+export default async function buildUrlRewrite(data) {
+  const { product } = data;
+  
+  // Build URL rewrite for the product
+  const url = buildUrl('productView', {
+    url_key: product.urlKey
+  });
+  
+  await insert('url_rewrite')
+    .given({
+      request_path: url,
+      target_path: `/product/${product.uuid}`,
+      entity_type: 'product',
+      entity_id: product.productId
+    })
+    .execute(pool);
+}
+```
+
+### Subscriber with Error Handling
+
+```javascript modules/catalog/subscribers/product_updated/updateSearchIndex.js
+import { update } from '@evershop/postgres-query-builder';
+import { pool } from '@evershop/evershop/src/lib/postgres/connection';
+import { error as logError } from '@evershop/evershop/src/lib/log/logger';
+
+export default async function updateSearchIndex(data) {
+  try {
+    const { product } = data;
+    
+    // Update search index
+    await update('product_search_index')
+      .given({
+        name: product.name,
+        description: product.description,
+        keywords: generateKeywords(product)
+      })
+      .where('product_id', '=', product.productId)
+      .execute(pool);
+  } catch (err) {
+    logError('Failed to update search index:', err);
+    // Don't throw - let other subscribers continue
+  }
+}
+
+function generateKeywords(product) {
+  // Generate search keywords from product data
+  return [product.name, product.sku, product.category]
+    .filter(Boolean)
+    .join(' ');
+}
+```
+
+## Loading Subscribers
+
+Subscribers are discovered and loaded during event manager initialization:
+
+```javascript packages/evershop/src/lib/event/loadSubscribers.js
+import fs from 'fs';
+import path from 'path';
+import { pathToFileURL } from 'url';
+
+async function loadModuleSubscribers(modulePath) {
+  const subscribers = [];
+  const subscribersDir = path.join(modulePath, 'subscribers');
+  
+  if (!fs.existsSync(subscribersDir)) {
+    return subscribers;
+  }
+  
+  // Get all event directories
+  const eventDirs = fs
+    .readdirSync(subscribersDir, { withFileTypes: true })
+    .filter((dirent) => dirent.isDirectory())
+    .map((dirent) => dirent.name);
+  
+  await Promise.all(
+    eventDirs.map(async (eventName) => {
+      const eventSubscribersDir = path.join(subscribersDir, eventName);
+      
+      // Get only .js files
+      const files = fs
+        .readdirSync(eventSubscribersDir, { withFileTypes: true })
+        .filter((dirent) => dirent.isFile() && dirent.name.endsWith('.js'))
+        .map((dirent) => dirent.name);
+      
+      await Promise.all(
+        files.map(async (file) => {
+          const subscriberPath = path.join(eventSubscribersDir, file);
+          const module = await import(pathToFileURL(subscriberPath));
+          subscribers.push({
+            event: eventName,
+            subscriber: module.default
+          });
+        })
+      );
+    })
+  );
+  
+  return subscribers;
+}
+
+export async function loadSubscribers(modules) {
+  const subscribers = [];
+  
+  await Promise.all(
+    modules.map(async (module) => {
+      try {
+        subscribers.push(...(await loadModuleSubscribers(module.path)));
+      } catch (e) {
+        error(e);
+        process.exit(0);
+      }
+    })
+  );
+  
+  return subscribers;
+}
+```
+
+## Event Manager
+
+The event manager is a background process that polls the database for events:
+
+```javascript packages/evershop/src/lib/event/event-manager.js
+const loadEventInterval = 10000;  // Load events every 10s
+const syncEventInterval = 2000;   // Sync events every 2s
+const maxEvents = 10;             // Max events in memory
+
+let events = [];
+const modules = [...getCoreModules(), ...getEnabledExtensions()];
+const subscribers = await loadSubscribers(modules);
+
+const init = async () => {
+  // Load bootstrap scripts from modules
+  try {
+    for (const module of modules) {
+      await loadBootstrapScript(module, {
+        ...JSON.parse(process.env.bootstrapContext || '{}'),
+        process: 'event'
+      });
+    }
+    lockHooks();
+    lockRegistry();
+  } catch (e) {
+    error(e);
+    process.exit(0);
+  }
+  
+  // Poll for new events
+  setInterval(async () => {
+    const newEvents = await loadEvents(maxEvents);
+    events = [...events, ...newEvents];
+    events = events.slice(-maxEvents); // Keep only last 10
+    
+    // Execute subscribers for each event
+    events.forEach((event) => {
+      if (event.status !== 'done' && event.status !== 'processing') {
+        executeSubscribers(event);
+      }
+    });
+  }, loadEventInterval);
+};
+
+// Sync completed events back to database
+setInterval(async () => {
+  await syncEvents();
+}, syncEventInterval);
+
+// Load events from database
+async function loadEvents(count) {
+  if (events.length >= maxEvents) {
+    return [];
+  }
+  
+  // Only load events that have subscribers
+  const eventNames = subscribers.map((subscriber) => subscriber.event);
+  
+  const query = select().from('event');
+  if (eventNames.length > 0) {
+    query.where('name', 'IN', eventNames);
+  }
+  
+  if (events.length > 0) {
+    query.andWhere(
+      'uuid',
+      'NOT IN',
+      events.map((event) => event.uuid)
+    );
+  }
+  
+  query.orderBy('event_id', 'ASC');
+  query.limit(0, count);
+  
+  const results = await query.execute(pool);
+  return results;
+}
+
+// Sync completed events (delete from database)
+async function syncEvents() {
+  const completedEvents = events
+    .filter((event) => event.status === 'done')
+    .map((event) => event.uuid);
+  
+  if (completedEvents.length > 0) {
+    await del('event')
+      .where('uuid', 'IN', completedEvents)
+      .execute(pool);
+    
+    events = events.filter((event) => event.status !== 'done');
+  }
+}
+
+// Execute all subscribers for an event
+async function executeSubscribers(event) {
+  event.status = 'processing';
+  const eventData = event.data;
+  
+  // Get matching subscribers
+  const matchingSubscribers = subscribers
+    .filter((subscriber) => subscriber.event === event.name)
+    .map((subscriber) => subscriber.subscriber);
+  
+  // Call all subscribers
+  await callSubscribers(matchingSubscribers, eventData);
+  
+  event.status = 'done';
+}
+
+init();
+```
+
+### Calling Subscribers
+
+```javascript packages/evershop/src/lib/event/callSubscibers.js
+export async function callSubscribers(subscribers, data) {
+  // Execute all subscribers in parallel
+  await Promise.all(
+    subscribers.map(async (subscriber) => {
+      try {
+        await subscriber(data);
+      } catch (error) {
+        console.error('Subscriber error:', error);
+        // Continue executing other subscribers
+      }
+    })
+  );
+}
+```
+
+<Warning>
+Subscribers run in parallel. If one fails, others continue. Always handle errors within subscribers.
+</Warning>
+
+## Common Event Patterns
+
+### Entity Created Events
+
+```javascript
+// In create product handler
+import { emit } from '@evershop/evershop/src/lib/event/emitter';
+
+export default async function createProduct(request, response) {
+  const data = request.body;
+  
+  const product = await insert('product')
+    .given(data)
+    .execute(pool);
+  
+  // Emit event
+  await emit('product_created', { product });
+  
+  response.json({ success: true, data: product });
+}
+```
+
+### Entity Updated Events
+
+```javascript
+export default async function updateProduct(request, response) {
+  const { id } = request.params;
+  const data = request.body;
+  
+  // Load old product for comparison
+  const oldProduct = await select()
+    .from('product')
+    .where('uuid', '=', id)
+    .load(pool);
+  
+  await update('product')
+    .given(data)
+    .where('uuid', '=', id)
+    .execute(pool);
+  
+  const product = await select()
+    .from('product')
+    .where('uuid', '=', id)
+    .load(pool);
+  
+  // Emit event with old and new data
+  await emit('product_updated', {
+    product,
+    oldProduct
+  });
+  
+  response.json({ success: true, data: product });
+}
+```
+
+### Entity Deleted Events
+
+```javascript
+export default async function deleteProduct(request, response) {
+  const { id } = request.params;
+  
+  const product = await select()
+    .from('product')
+    .where('uuid', '=', id)
+    .load(pool);
+  
+  await del('product')
+    .where('uuid', '=', id)
+    .execute(pool);
+  
+  // Emit event
+  await emit('product_deleted', { product });
+  
+  response.json({ success: true });
+}
+```
+
+## Practical Examples
+
+### Example 1: Send Email on Order Created
+
+```javascript modules/oms/subscribers/order_created/sendConfirmationEmail.js
+import { sendEmail } from '@evershop/evershop/src/lib/mail/sendEmail';
+
+export default async function sendConfirmationEmail(data) {
+  const { order } = data;
+  
+  await sendEmail({
+    to: order.customerEmail,
+    subject: `Order Confirmation - ${order.orderNumber}`,
+    template: 'order-confirmation',
+    data: { order }
+  });
+}
+```
+
+### Example 2: Update Inventory on Order Placed
+
+```javascript modules/oms/subscribers/order_created/updateInventory.js
+import { update } from '@evershop/postgres-query-builder';
+import { pool } from '@evershop/evershop/src/lib/postgres/connection';
+
+export default async function updateInventory(data) {
+  const { order } = data;
+  
+  // Decrease inventory for each item
+  for (const item of order.items) {
+    await update('product')
+      .set('qty', 'qty - ?', [item.qty])
+      .where('product_id', '=', item.productId)
+      .execute(pool);
+  }
+}
+```
+
+### Example 3: Log Activity
+
+```javascript modules/customer/subscribers/customer_login/logActivity.js
+import { insert } from '@evershop/postgres-query-builder';
+import { pool } from '@evershop/evershop/src/lib/postgres/connection';
+
+export default async function logActivity(data) {
+  const { customer, ipAddress, userAgent } = data;
+  
+  await insert('customer_activity_log')
+    .given({
+      customer_id: customer.customerId,
+      activity_type: 'login',
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      created_at: new Date()
+    })
+    .execute(pool);
+}
+```
+
+### Example 4: Sync to External Service
+
+```javascript modules/catalog/subscribers/product_created/syncToExternalService.js
+import axios from 'axios';
+import { error as logError } from '@evershop/evershop/src/lib/log/logger';
+
+export default async function syncToExternalService(data) {
+  const { product } = data;
+  
+  try {
+    await axios.post(
+      process.env.EXTERNAL_SERVICE_URL,
+      {
+        action: 'product.created',
+        data: product
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.EXTERNAL_SERVICE_TOKEN}`
+        }
+      }
+    );
+  } catch (err) {
+    logError('Failed to sync product to external service:', err);
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep events focused">
+    Each event should represent a single, clear action. For example, `product_created` not `product_action`.
+  </Accordion>
+  
+  <Accordion title="Include relevant data in events">
+    Include all data subscribers might need. Don't make subscribers query the database for data you already have.
+  </Accordion>
+  
+  <Accordion title="Handle errors gracefully">
+    Wrap subscriber logic in try-catch blocks. One failing subscriber shouldn't prevent others from running.
+  </Accordion>
+  
+  <Accordion title="Keep subscribers independent">
+    Subscribers should not depend on each other or on execution order. They all run in parallel.
+  </Accordion>
+  
+  <Accordion title="Use meaningful event names">
+    Follow the pattern `entity_action`: `product_created`, `order_placed`, `customer_login`, etc.
+  </Accordion>
+  
+  <Accordion title="Don't emit events in subscribers">
+    Avoid creating event chains where subscribers emit new events. This can lead to infinite loops.
+  </Accordion>
+</AccordionGroup>
+
+## Event Manager Commands
+
+### Starting the Event Manager
+
+```bash
+npm run event:manager
+```
+
+### Stopping the Event Manager
+
+The event manager handles `SIGTERM` and `SIGINT` signals gracefully:
+
+```javascript
+process.on('SIGTERM', async () => {
+  debug('Event manager received SIGTERM, shutting down...');
+  try {
+    process.exit(0);
+  } catch (err) {
+    error('Error during shutdown:');
+    error(err);
+    process.exit(1);
+  }
+});
+
+process.on('SIGINT', async () => {
+  debug('Event manager received SIGINT, shutting down...');
+  try {
+    process.exit(0);
+  } catch (err) {
+    error('Error during shutdown:');
+    error(err);
+    process.exit(1);
+  }
+});
+```
+
+<Info>
+In production, use a process manager like PM2 or systemd to keep the event manager running and restart it if it crashes.
+</Info>
+
+## Event Storage
+
+Events are stored in the `event` table:
+
+```sql
+CREATE TABLE event (
+  event_id SERIAL PRIMARY KEY,
+  uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  data JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_event_name ON event(name);
+CREATE INDEX idx_event_created_at ON event(created_at);
+```
+
+## Monitoring Events
+
+Query pending events:
+
+```sql
+SELECT name, COUNT(*) as count
+FROM event
+GROUP BY name
+ORDER BY count DESC;
+```
+
+Check for old events (may indicate processing issues):
+
+```sql
+SELECT *
+FROM event
+WHERE created_at < NOW() - INTERVAL '1 hour'
+ORDER BY created_at;
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Module System" icon="puzzle-piece" href="/core-concepts/module-system">
+    Learn how modules bootstrap and register
+  </Card>
+  <Card title="Middleware" icon="layer-group" href="/core-concepts/middleware">
+    Understand request processing
+  </Card>
+</CardGroup>

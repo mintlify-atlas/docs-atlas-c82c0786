@@ -1,0 +1,121 @@
+---
+title: CLI Overview
+description: EverShop command-line interface for managing your e-commerce application
+---
+
+## Introduction
+
+The EverShop CLI provides a set of commands to manage your e-commerce store from the command line. It handles development workflows, production builds, deployment, user management, and theme customization.
+
+## Installation
+
+The CLI is included with the EverShop package. When you install EverShop, the `evershop` command becomes available:
+
+```bash
+npm install @evershop/evershop
+```
+
+The CLI is accessible through the `evershop` binary:
+
+```bash
+evershop <command> [options]
+```
+
+## Available Commands
+
+### Development
+
+- `evershop dev` - Start the development server with hot reload
+- `evershop build` - Build the application for production
+- `evershop start` - Start the production server
+
+### Setup & Installation
+
+- `evershop install` - Run the interactive setup wizard
+
+### User Management
+
+- `evershop user:create` - Create a new admin user
+- `evershop user:changePassword` - Change an admin user's password
+
+### Theme Management
+
+- `evershop theme:create` - Create a new theme
+- `evershop theme:active` - Activate an existing theme
+- `evershop theme:twizz` - Create theme overrides for components
+
+## Basic Usage
+
+### Quick Start Development
+
+```bash
+# Install your store
+evershop install
+
+# Start development server
+evershop dev
+```
+
+### Production Deployment
+
+```bash
+# Build for production
+evershop build
+
+# Start production server
+evershop start
+```
+
+## Environment Variables
+
+The CLI respects environment variables set in your `.env` file or system environment:
+
+- `DB_HOST` - Database host
+- `DB_PORT` - Database port
+- `DB_NAME` - Database name
+- `DB_USER` - Database user
+- `DB_PASSWORD` - Database password
+- `DB_SSLMODE` - SSL mode (require/disable)
+
+## Global Behavior
+
+### Error Handling
+
+All CLI commands include comprehensive error handling:
+
+- Uncaught exceptions are logged
+- Unhandled promise rejections are captured
+- Detailed error messages are provided
+
+### Configuration
+
+The CLI uses the Node.js `config` package to manage configuration:
+
+- Configuration files are located in `config/`
+- Default configuration is in `config/default.json`
+- Environment-specific configs override defaults
+
+## Getting Help
+
+Most commands support the `--help` flag:
+
+```bash
+evershop user:create --help
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Server" icon="code" href="/api/cli/dev">
+    Learn about the development workflow
+  </Card>
+  <Card title="Production Build" icon="hammer" href="/api/cli/build">
+    Build your store for production
+  </Card>
+  <Card title="User Management" icon="users" href="/api/cli/user">
+    Manage admin users
+  </Card>
+  <Card title="Theme Commands" icon="palette" href="/api/cli/theme">
+    Customize your store's appearance
+  </Card>
+</CardGroup>

@@ -1,0 +1,256 @@
+---
+title: GraphQL Schema
+description: Learn how EverShop's GraphQL schema is structured and built from modular components
+---
+
+## Overview
+
+EverShop uses a modular GraphQL schema architecture where each module contributes its own types, queries, and resolvers. The schema is automatically built by scanning all modules and merging their GraphQL definitions.
+
+## Schema Architecture
+
+### Modular Design
+
+The GraphQL schema is distributed across modules in:
+```
+packages/evershop/src/modules/*/graphql/types/
+```
+
+Each module can define:
+- **Type Definitions** (`.graphql` files) - Define GraphQL types, queries, mutations
+- **Resolvers** (`.resolvers.js` or `.resolvers.ts` files) - Implement the logic for fields and operations
+- **Admin Extensions** (`.admin.graphql` files) - Additional fields/queries for admin API
+
+### Schema Building Process
+
+The schema is built using these core services:
+
+#### 1. Type Definitions (`buildTypes.js`)
+
+Collects all `.graphql` files from enabled modules:
+
+```javascript
+// Scans pattern: */graphql/types/**/*.graphql
+// For storefront: Excludes *.admin.graphql files
+// For admin: Includes all .graphql files
+```
+
+#### 2. Resolvers (`buildResolvers.js`)
+
+Merges all resolver files:
+
+```javascript
+// Scans pattern: */graphql/types/**/*.resolvers.{js,ts}
+// For storefront: Excludes *.admin.resolvers.js files
+// For admin: Includes all resolver files
+```
+
+#### 3. Schema Compilation (`buildSchema.js`)
+
+Combines types and resolvers into executable schema:
+
+```javascript
+import { makeExecutableSchema } from '@graphql-tools/schema';
+
+const schema = makeExecutableSchema({
+  typeDefs: buildTypeDefs(isAdmin),
+  resolvers: buildResolvers(isAdmin)
+});
+```
+
+## Schema Types
+
+### Storefront vs Admin
+
+EverShop maintains two GraphQL schemas:
+
+<CardGroup cols={2}>
+  <Card title="Storefront Schema" icon="store">
+    Public-facing API for customers
+    - Product browsing
+    - Cart operations
+    - Customer authentication
+    - Order viewing
+  </Card>
+  <Card title="Admin Schema" icon="shield">
+    Management API with extended fields
+    - CRUD operations
+    - Additional data fields
+    - Management URLs
+    - Analytics queries
+  </Card>
+</CardGroup>
+
+### Type Extension Pattern
+
+EverShop uses GraphQL's `extend type` to add fields from different modules:
+
+```graphql
+# In catalog/graphql/types/Product/Product.graphql
+type Product {
+  productId: Int!
+  name: String!
+  sku: String!
+}
+
+# In catalog/graphql/types/Product/Price/ProductPrice.graphql
+extend type Product {
+  price: ProductPrice!
+}
+
+# In catalog/graphql/types/Product/Image/ProductImage.graphql
+extend type Product {
+  image: Image
+  gallery: [Image]
+}
+```
+
+This allows modules to independently contribute to shared types.
+
+## Core Modules
+
+### Catalog Module
+- Products, categories, collections
+- Attributes and variants
+- Product images and pricing
+
+### Checkout Module
+- Shopping cart
+- Shipping and payment methods
+- Price calculations
+
+### Customer Module
+- Customer accounts
+- Addresses
+- Authentication
+
+### OMS (Order Management)
+- Orders and order items
+- Shipments
+- Order status tracking
+
+### CMS Module
+- Pages and content
+- Menus
+- Widgets
+
+### Base Module
+- Common types (Country, Province, Currency)
+- Date/time handling
+- URLs and routes
+
+## Schema Interfaces
+
+EverShop uses GraphQL interfaces for shared structures:
+
+### ShoppingCart Interface
+
+Implemented by both `Cart` and `Order` types:
+
+```graphql
+interface ShoppingCart {
+  uuid: String!
+  currency: String!
+  customerId: Int
+  subTotal: Price!
+  grandTotal: Price!
+  items: [ShoppingCartItem]
+  # ... more fields
+}
+```
+
+### Address Interface
+
+Implemented by `CartAddress`, `OrderAddress`, and `CustomerAddress`:
+
+```graphql
+interface Address {
+  fullName: String
+  postcode: String
+  telephone: String
+  country: Country
+  province: Province
+  city: String
+  address1: String
+  address2: String
+}
+```
+
+## Custom Scalars
+
+EverShop defines custom scalar types:
+
+- `JSON` - For storing structured data
+- `Date` - For date values
+- `DateTime` - For timestamp values
+
+## Schema Introspection
+
+You can explore the full schema using GraphQL introspection:
+
+```graphql
+query {
+  __schema {
+    types {
+      name
+      kind
+      description
+    }
+  }
+}
+```
+
+Or query specific type information:
+
+```graphql
+query {
+  __type(name: "Product") {
+    name
+    fields {
+      name
+      type {
+        name
+        kind
+      }
+    }
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Organizing GraphQL Files">
+    - Place `.graphql` files in `graphql/types/TypeName/` directories
+    - Use descriptive type names matching your domain models
+    - Keep related types in the same directory
+    - Use `.admin.graphql` for admin-only extensions
+  </Accordion>
+
+  <Accordion title="Extending Types">
+    - Use `extend type` when adding fields from different modules
+    - Keep field resolvers in the same directory as type definitions
+    - Document complex fields with GraphQL descriptions
+  </Accordion>
+
+  <Accordion title="Writing Resolvers">
+    - Name resolver files matching the GraphQL file: `Type.resolvers.js`
+    - Use async/await for database operations
+    - Leverage the context object for authentication and services
+    - Handle errors gracefully and return null for optional fields
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Queries" icon="search" href="/api/graphql/queries">
+    Explore available GraphQL queries
+  </Card>
+  <Card title="Mutations" icon="pencil" href="/api/graphql/mutations">
+    Learn about data modification operations
+  </Card>
+  <Card title="Types" icon="shapes" href="/api/graphql/types">
+    View all GraphQL types and their fields
+  </Card>
+</CardGroup>

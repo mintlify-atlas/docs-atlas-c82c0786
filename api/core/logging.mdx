@@ -1,0 +1,391 @@
+---
+title: Logging API
+description: Winston-based logger with customizable log levels and formatting
+---
+
+## Overview
+
+EverShop provides a centralized logging system built on Winston. The logger supports multiple log levels, custom formatting with colors and icons, and flexible output destinations (console or file).
+
+## Logger Functions
+
+### debug()
+
+Log debug-level messages.
+
+```javascript
+import { debug } from '@evershop/evershop/src/lib/log/logger';
+
+debug('Processing order #123');
+debug({ orderId: 123, status: 'processing' });
+```
+
+**Location:** `packages/evershop/src/lib/log/logger.js:14`
+
+<Info>
+  Debug logs are only output in development mode or when the `--debug` flag is passed.
+</Info>
+
+### info()
+
+Log informational messages.
+
+```javascript
+import { info } from '@evershop/evershop/src/lib/log/logger';
+
+info('Server started on port 3000');
+info('Database connection established');
+```
+
+**Location:** `packages/evershop/src/lib/log/logger.js:29`
+
+### success()
+
+Log success messages (alias for info).
+
+```javascript
+import { success } from '@evershop/evershop/src/lib/log/logger';
+
+success('Order created successfully');
+success('Payment processed');
+```
+
+**Location:** `packages/evershop/src/lib/log/logger.js:34`
+
+### warning()
+
+Log warning messages.
+
+```javascript
+import { warning } from '@evershop/evershop/src/lib/log/logger';
+
+warning('Product stock is running low');
+warning('Cache miss for product ID 123');
+```
+
+**Location:** `packages/evershop/src/lib/log/logger.js:23`
+
+### error()
+
+Log error messages with stack traces.
+
+```javascript
+import { error } from '@evershop/evershop/src/lib/log/logger';
+
+try {
+  await processOrder();
+} catch (err) {
+  error(err);
+  // Stack trace is automatically included
+}
+
+// Or log error messages directly
+error('Failed to connect to database');
+```
+
+**Location:** `packages/evershop/src/lib/log/logger.js:19`
+
+## Log Levels
+
+Winston log levels supported (in order of priority):
+
+<ResponseField name="error" type="level 0">
+  Critical errors that require immediate attention
+  
+  Icon: ❌ | Color: Red
+</ResponseField>
+
+<ResponseField name="warn" type="level 1">
+  Warning messages for potentially problematic situations
+  
+  Icon: ⚠️ | Color: Yellow
+</ResponseField>
+
+<ResponseField name="info" type="level 2">
+  Informational messages about normal operation
+  
+  Icon: ℹ️ | Color: Green
+</ResponseField>
+
+<ResponseField name="http" type="level 3">
+  HTTP request/response logging
+  
+  Icon: 🌐 | Color: Blue
+</ResponseField>
+
+<ResponseField name="verbose" type="level 4">
+  Verbose diagnostic information
+  
+  Icon: 🔍 | Color: Cyan
+</ResponseField>
+
+<ResponseField name="debug" type="level 5">
+  Detailed debugging information
+  
+  Icon: 🐛 | Color: Magenta
+</ResponseField>
+
+<ResponseField name="silly" type="level 6">
+  Most detailed logging level
+  
+  Icon: 🤪 | Color: Gray
+</ResponseField>
+
+## Configuration
+
+### Environment Variables
+
+Configure logging behavior with environment variables:
+
+```bash
+# Set log level (default: 'warn' in production, 'silly' in development)
+LOGGER_LEVEL=info
+
+# Log to file instead of console (production)
+LOG_FILE=/var/log/evershop/app.log
+
+# Enable debug mode
+NODE_ENV=development
+```
+
+### Log Format
+
+Logs are formatted with:
+- Icon based on log level
+- Colored level indicator
+- Message content
+- Stack trace (for errors)
+
+**Example output:**
+
+```
+🐛 debug: 
+Processing order #123
+
+ℹ️ info: 
+Server started on port 3000
+
+⚠️  warn: 
+Product stock is running low
+
+❌ error: 
+Failed to connect to database
+Error: Connection refused
+    at Connection.connect (/app/db.js:45:12)
+    ...
+```
+
+**Implementation:** `packages/evershop/src/lib/log/logger.js:63`
+
+## Logger Configuration
+
+The logger is configured through the registry system:
+
+```javascript
+import winston from 'winston';
+import { addProcessor } from '@evershop/evershop/src/lib/util/registry';
+
+addProcessor(
+  'logger_configuration',
+  () => {
+    return {
+      level: 'debug',
+      format: winston.format.combine(
+        winston.format.errors({ stack: true }),
+        winston.format.colorize(),
+        winston.format.printf(({ level, message, stack }) => {
+          return `${level}: ${stack || message}`;
+        })
+      ),
+      transports: [
+        new winston.transports.Console()
+      ]
+    };
+  },
+  0  // Priority
+);
+```
+
+**Location:** `packages/evershop/src/lib/log/logger.js:39`
+
+## Custom Colorization
+
+EverShop uses a custom colorization formatter:
+
+**Location:** `packages/evershop/src/lib/log/CustomColorize.js`
+
+```javascript
+import CustomColorize from './CustomColorize.js';
+
+const format = winston.format.combine(
+  CustomColorize({
+    colors: {
+      error: 'red',
+      warn: 'yellow',
+      info: 'green',
+      debug: 'magenta'
+    },
+    level: false,  // Don't colorize level text
+    message: true  // Colorize message content
+  })
+);
+```
+
+**Usage:** `packages/evershop/src/lib/log/logger.js:50`
+
+## Output Destinations
+
+### Console (Development)
+
+In development mode, logs are output to the console:
+
+```javascript
+transports: [new winston.transports.Console()]
+```
+
+### File (Production)
+
+In production, logs can be written to a file:
+
+```bash
+LOG_FILE=/var/log/evershop/app.log
+```
+
+```javascript
+transports: [
+  new winston.transports.File({ filename: '/var/log/evershop/app.log' })
+]
+```
+
+**Implementation:** `packages/evershop/src/lib/log/logger.js:138`
+
+## Exception Handling
+
+The logger automatically captures unhandled exceptions:
+
+```javascript
+exceptionHandlers: [
+  new winston.transports.Console()
+  // or
+  new winston.transports.File({ filename: '/var/log/evershop/app.log' })
+]
+```
+
+**Location:** `packages/evershop/src/lib/log/logger.js:141`
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Appropriate Log Levels">
+    - `error()` for failures that need immediate attention
+    - `warning()` for recoverable issues
+    - `info()` for important state changes
+    - `debug()` for detailed troubleshooting
+  </Step>
+  
+  <Step title="Include Context">
+    Log relevant context like IDs, user info, or operation details:
+    ```javascript
+    debug(`Processing order ${orderId} for customer ${customerId}`);
+    ```
+  </Step>
+  
+  <Step title="Don't Log Sensitive Data">
+    Never log passwords, tokens, credit card numbers, or personal data:
+    ```javascript
+    // ✗ Bad
+    debug({ password: user.password });
+    
+    // ✓ Good
+    debug({ userId: user.id, email: user.email });
+    ```
+  </Step>
+  
+  <Step title="Use Structured Logging">
+    Log objects for better parsing and filtering:
+    ```javascript
+    info({
+      event: 'order_created',
+      orderId: 123,
+      total: 99.99,
+      timestamp: new Date()
+    });
+    ```
+  </Step>
+  
+  <Step title="Catch and Log Errors">
+    Always catch errors and log them with context:
+    ```javascript
+    try {
+      await processPayment(orderId);
+    } catch (err) {
+      error(`Payment failed for order ${orderId}:`);
+      error(err);
+      throw err;
+    }
+    ```
+  </Step>
+</Steps>
+
+## Development vs Production
+
+### Development Mode
+
+- Log level: `silly` (all logs)
+- Output: Console with colors and icons
+- Debug logs enabled
+- Stack traces shown
+
+### Production Mode
+
+- Log level: `warn` (configurable via `LOGGER_LEVEL`)
+- Output: File (via `LOG_FILE`) or console
+- Debug logs disabled (unless `--debug` flag)
+- Stack traces for errors only
+
+**Mode Detection:** `packages/evershop/src/lib/log/logger.js:9`
+
+```javascript
+const isDebugging = isDevelopmentMode() || process.argv.includes('--debug');
+```
+
+## Example: Logging in a Service
+
+```javascript
+import { info, error, warning, debug } from '@evershop/evershop/src/lib/log/logger';
+import { select } from '@evershop/postgres-query-builder';
+import { pool } from '@evershop/evershop/src/lib/postgres/connection';
+
+export async function processOrder(orderId) {
+  debug(`Starting order processing for order ${orderId}`);
+  
+  try {
+    // Load order
+    const order = await select()
+      .from('order')
+      .where('order_id', '=', orderId)
+      .load(pool);
+    
+    if (!order) {
+      warning(`Order ${orderId} not found`);
+      return null;
+    }
+    
+    debug(`Order ${orderId} loaded:`, order);
+    
+    // Process payment
+    await processPayment(order);
+    info(`Payment processed successfully for order ${orderId}`);
+    
+    // Update status
+    await updateOrderStatus(orderId, 'completed');
+    info(`Order ${orderId} marked as completed`);
+    
+    return order;
+  } catch (err) {
+    error(`Failed to process order ${orderId}:`);
+    error(err);
+    throw err;
+  }
+}
+```
