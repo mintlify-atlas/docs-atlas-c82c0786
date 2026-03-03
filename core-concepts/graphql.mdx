@@ -120,9 +120,12 @@ export default {
   Product: {
     price: (product) => {
       const price = parseFloat(product.price);
+      const specialPrice = product.special_price 
+        ? parseFloat(product.special_price) 
+        : null;
       return {
         regular: price,
-        special: price // TODO: implement special price
+        special: specialPrice
       };
     }
   }

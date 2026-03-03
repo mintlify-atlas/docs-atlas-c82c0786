@@ -106,7 +106,8 @@
               "api/cli/start",
               "api/cli/install",
               "api/cli/user",
-              "api/cli/theme"
+              "api/cli/theme",
+              "api/cli/seed"
             ]
           },
           {

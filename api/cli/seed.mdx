@@ -1,0 +1,291 @@
+---
+title: evershop seed
+description: Seed demo data for development and testing
+---
+
+The `evershop seed` command populates your EverShop store with demo data including products, categories, collections, pages, and widgets.
+
+## Usage
+
+```bash
+evershop seed [options]
+```
+
+## Options
+
+<ParamField path="--attributes" type="boolean" default="false">
+  Seed product attributes (color, size, material, etc.)
+  
+  **Alias:** `-a`
+</ParamField>
+
+<ParamField path="--categories" type="boolean" default="false">
+  Seed product categories
+  
+  **Alias:** `-c`
+</ParamField>
+
+<ParamField path="--collections" type="boolean" default="false">
+  Seed product collections
+  
+  **Alias:** `--col`
+</ParamField>
+
+<ParamField path="--products" type="boolean" default="false">
+  Seed demo products with images
+  
+  **Alias:** `-p`
+</ParamField>
+
+<ParamField path="--widgets" type="boolean" default="false">
+  Seed CMS widgets
+  
+  **Alias:** `-w`
+</ParamField>
+
+<ParamField path="--pages" type="boolean" default="false">
+  Seed CMS pages
+  
+  **Alias:** `--pg`
+</ParamField>
+
+<ParamField path="--all" type="boolean" default="false">
+  Seed all demo data (attributes, categories, collections, products, widgets, pages)
+</ParamField>
+
+## Examples
+
+### Seed All Demo Data
+
+```bash
+evershop seed --all
+```
+
+This will seed:
+- Product attribute groups and attributes
+- Categories
+- Collections
+- Demo products with images
+- CMS widgets
+- CMS pages
+
+### Seed Specific Data Types
+
+Seed only products and categories:
+
+```bash
+evershop seed --products --categories
+```
+
+Seed only CMS content:
+
+```bash
+evershop seed --pages --widgets
+```
+
+### Using Aliases
+
+```bash
+evershop seed -a -c -p  # Attributes, categories, and products
+```
+
+## What Gets Seeded
+
+### Attributes
+
+Creates a demo attribute group with common product attributes:
+
+- **Color** - Select attribute with options (Red, Blue, Green, etc.)
+- **Size** - Select attribute with options (S, M, L, XL)
+- **Material** - Select attribute (Cotton, Polyester, etc.)
+
+### Categories
+
+Creates a sample category hierarchy:
+
+- Men's Clothing
+- Women's Clothing
+- Accessories
+- Electronics
+
+### Collections
+
+Creates featured collections:
+
+- New Arrivals
+- Best Sellers
+- Sale Items
+
+### Products
+
+Seeds demo products with:
+
+- Product names and descriptions
+- SKUs and pricing
+- Product images (downloaded from demo URLs)
+- Attribute values
+- Category assignments
+- Inventory levels
+
+### Pages
+
+Creates sample CMS pages:
+
+- About Us
+- Privacy Policy
+- Terms of Service
+- Shipping Information
+
+### Widgets
+
+Creates demo widgets:
+
+- Hero banners
+- Featured product widgets
+- Text blocks
+
+## Prerequisites
+
+<Warning>
+  The seed command requires a working database connection. Make sure you've run `evershop install` first.
+</Warning>
+
+Before running seed:
+
+1. Complete installation: `evershop install`
+2. Configure database connection
+3. Ensure database is accessible
+
+## Use Cases
+
+### Development & Testing
+
+Seed demo data for development:
+
+```bash
+# Fresh install
+evershop install
+
+# Add demo data
+evershop seed --all
+```
+
+### Demo Stores
+
+Create a demo store for presentations:
+
+```bash
+evershop seed --all
+```
+
+### Testing Specific Features
+
+Test product catalog features:
+
+```bash
+evershop seed --products --categories --attributes
+```
+
+Test CMS features:
+
+```bash
+evershop seed --pages --widgets
+```
+
+## Data Source
+
+Demo data is seeded from:
+
+- **Data files** - Located in `packages/evershop/src/bin/seed/data/`
+- **Image URLs** - Product images are downloaded from external URLs
+- **Predefined structures** - Categories and attributes follow common ecommerce patterns
+
+## Seeding Process
+
+The seed command:
+
+1. **Creates attribute group** (if seeding attributes or products)
+2. **Seeds attributes** (color, size, material)
+3. **Seeds categories** (product category tree)
+4. **Seeds collections** (featured collections)
+5. **Seeds products** (demo products with images)
+6. **Seeds widgets** (CMS widgets)
+7. **Seeds pages** (CMS pages)
+
+## Image Handling
+
+Product images are:
+
+- Downloaded from external URLs
+- Processed and optimized
+- Stored in the media directory
+- Associated with products
+
+<Note>
+  Image downloading requires internet connectivity and may take time depending on your connection speed.
+</Note>
+
+## Idempotency
+
+<Warning>
+  The seed command is **not idempotent**. Running it multiple times will create duplicate data.
+</Warning>
+
+To re-seed:
+
+1. Drop and recreate the database
+2. Run `evershop install`
+3. Run `evershop seed --all`
+
+## Error Handling
+
+If seeding fails:
+
+```bash
+# Error example
+Seeding failed: Connection to database failed
+```
+
+Common issues:
+
+- **Database not configured** - Run `evershop install` first
+- **Database connection error** - Check database credentials
+- **Missing permissions** - Ensure database user has write permissions
+- **Network issues** - Images may fail to download if offline
+
+## Performance
+
+Seeding all data typically takes:
+
+- **Attributes & Categories**: < 1 second
+- **Collections**: < 1 second
+- **Products**: 30-60 seconds (depends on image downloads)
+- **Pages & Widgets**: < 1 second
+
+<Tip>
+  Use specific flags instead of `--all` if you only need certain data types. This speeds up the seeding process.
+</Tip>
+
+## Best Practices
+
+1. **Fresh database** - Seed on a fresh installation to avoid conflicts
+2. **Development only** - Don't use seed command in production
+3. **Selective seeding** - Only seed what you need for testing
+4. **Clear before re-seed** - Drop database before re-seeding
+
+## Related Commands
+
+<CardGroup cols={2}>
+  <Card title="install" icon="download" href="/api/cli/install">
+    Run before seeding to set up database
+  </Card>
+  <Card title="dev" icon="code" href="/api/cli/dev">
+    Start development server to view seeded data
+  </Card>
+</CardGroup>
+
+## See Also
+
+- [Installation Guide](/installation) - Complete installation process
+- [Catalog Module](/modules/catalog) - Managing products and categories
+- [CMS Module](/modules/cms) - Managing pages and widgets
